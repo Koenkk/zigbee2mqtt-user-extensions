@@ -1,0 +1,29 @@
+{
+  "name": "zigbee2mqtt-prometheus-metrics",
+  "version": "0.0.1",
+  "description": "zigbee2mqtt prometheus metrics",
+  "scripts": {
+    "watch": "tsc --watch",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pmarques/zigbee2mqtt-user-extensions.git"
+  },
+  "keywords": [
+    "metrics",
+    "prometheus",
+    "zigbee2mqtt"
+  ],
+  "author": "Patrick Marques",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^18.15.12",
+    "typescript": "^5.0.4",
+    "zigbee2mqtt": "^1.30.3"
+  },
+  "dependencies": {
+    "bind-decorator": "^1.0.11",
+    "prom-client": "^14.2.0"
+  }
+}
