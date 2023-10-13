@@ -4,7 +4,7 @@
  * This extension registers and exposes the remote's controls, making them available on the appropriate MQTT topics.
  */
 const DISCOVERY_PREFIX = 'homeassistant';
-const VERSION = "1.0.0-unstable";
+const VERSION = "1.0.1-unstable";
 const NAME = "miboxer-fut089z/controls-exposer";
 
 class MiboxerFut089zControlsExposer {
@@ -19,7 +19,7 @@ class MiboxerFut089zControlsExposer {
         
         this.previousBrightnessSliderLevelByIeeeAddr = {};
 
-        logger.info('Loaded  MiBoxerFUT089Z');
+        logger.info(`Loaded ${NAME} v${VERSION}`);
     }
     
     _setupDeviceDiscovery(device) {
@@ -45,10 +45,10 @@ class MiboxerFut089zControlsExposer {
                     "origin": {
                       "name": `Zigbee2MQTT user extension (${NAME})`,
                       "sw_version": VERSION,
-                      "support_url": "https://github.com/Koenkk/zigbee-herdsman-converters/pull/4153"
+                      "support_url": "https://github.com/Koenkk/zigbee2mqtt-user-extensions/issues"
                     },
                     "platform": "mqtt",
-                }
+                };
                 const discoveryPayload = JSON.stringify(discoveryPayloadObject);
                 this.mqtt.publish(discoveryTopic, discoveryPayload, {}, DISCOVERY_PREFIX); // Register the controls of the device in Home Assistant
             }
@@ -60,7 +60,7 @@ class MiboxerFut089zControlsExposer {
             "name": "Brightness",
             "state_topic": `zigbee2mqtt/${ieeeAddr}/brightness`,
             "unit_of_measurement": "%",
-            "value_template": "{{ (value_json.brightness-2)/252*100 }}",
+            "value_template": "{{ ((value_json.brightness-2)/252*100) | round(0) | int }}",
             "device": {
                 "identifiers": [
                     `zigbee2mqtt_${ieeeAddr}`
@@ -68,12 +68,12 @@ class MiboxerFut089zControlsExposer {
             },
             "unique_id": `${ieeeAddr}_brightness_zigbee2mqtt`,
             "origin": {
-              "name": "Zigbee2MQTT extension (MiBoxerFUT089Z)",
+              "name": `Zigbee2MQTT user extension (${NAME})`,
               "sw_version": VERSION,
-              "support_url": "https://github.com/Koenkk/zigbee-herdsman-converters/pull/4153"
+              "support_url": "https://github.com/Koenkk/zigbee2mqtt-user-extensions/issues"
             },
             "platform": "mqtt",
-        }
+        };
         const brightnessDiscoveryPayload = JSON.stringify(brightnessDiscoveryPayloadObject);
         this.mqtt.publish(brightnessDiscoveryTopic, brightnessDiscoveryPayload, {}, DISCOVERY_PREFIX); // Register the brightness control of the device in Home Assistant
         
@@ -91,12 +91,12 @@ class MiboxerFut089zControlsExposer {
             },
             "unique_id": `${ieeeAddr}_color_temp_zigbee2mqtt`,
             "origin": {
-              "name": "Zigbee2MQTT extension (MiBoxerFUT089Z)",
+              "name": `Zigbee2MQTT user extension (${NAME})`,
               "sw_version": VERSION,
-              "support_url": "https://github.com/Koenkk/zigbee-herdsman-converters/pull/4153"
+              "support_url": "https://github.com/Koenkk/zigbee2mqtt-user-extensions/issues"
             },
             "platform": "mqtt",
-        }
+        };
         const colorTempDiscoveryPayload = JSON.stringify(colorTempDiscoveryPayloadObject);
         this.mqtt.publish(colorTempDiscoveryTopic, colorTempDiscoveryPayload, {}, DISCOVERY_PREFIX); // Register the color temperature control of the device in Home Assistant
         
@@ -114,12 +114,12 @@ class MiboxerFut089zControlsExposer {
             },
             "unique_id": `${ieeeAddr}_rgb_zigbee2mqtt`,
             "origin": {
-              "name": "Zigbee2MQTT extension (MiBoxerFUT089Z)",
+              "name": `Zigbee2MQTT user extension (${NAME})`,
               "sw_version": VERSION,
-              "support_url": "https://github.com/Koenkk/zigbee-herdsman-converters/pull/4153"
+              "support_url": "https://github.com/Koenkk/zigbee2mqtt-user-extensions/issues"
             },
             "platform": "mqtt",
-        }
+        };
         const colorDiscoveryPayload = JSON.stringify(colorDiscoveryPayloadObject);
         this.mqtt.publish(colorDiscoveryTopic, colorDiscoveryPayload, {}, DISCOVERY_PREFIX); // Register the color temperature control of the device in Home Assistant
     }
@@ -139,7 +139,7 @@ class MiboxerFut089zControlsExposer {
         miBoxerRemotes.forEach(device => this._setupDeviceDiscovery(device));
         
         // Setup discovery for remotes that are added while the extension is running
-        this.eventBus.onDeviceJoined(this, (data) => {
+        this.eventBus.onDeviceAnnounce(this, (data) => { // TODO: Research if onDeviceJoined is necessary as well
             const device = data.device;
             if (this._deviceIsSupportedRemote(device)) {
                 this._setupDeviceDiscovery(device);
@@ -153,10 +153,14 @@ class MiboxerFut089zControlsExposer {
                 const ieeeAddr = data.device.zh._ieeeAddr;
                 const { type, groupID, cluster } = data;
                 let zone
-                if (groupID <= 108) {
+                if (groupID <= 108 && groupID >= 101) {
                     zone = groupID-100;
-                } else { //In case https://github.com/Koenkk/zigbee-herdsman-converters/pull/6275 gets merged
+                } else { // In case https://github.com/Koenkk/zigbee-herdsman-converters/pull/6275 gets merged
                     zone = groupID-parseInt(ieeeAddr, 16);
+                }
+                if (zone < 1 || zone > 8 ) {
+                    console.log(`[User Extension - ${NAME}] Warning: This extension doesn't support custom group IDs for MiBoxer FUT089Z remotes!`)
+                    return
                 }
                 if (cluster === 'genOnOff') { // Button was pressed
                     if (type === 'commandOn') {
@@ -181,7 +185,9 @@ class MiboxerFut089zControlsExposer {
                     const newRgbColor = data?.data?.rgbcolor;
                     const triggerPayload = {rgb: newRgbColor, zone: groupID};
                     this.mqtt.publish(`${ieeeAddr}/rgb`, triggerPayload);
-                }*/
+                }*/ else {
+                    console.log(`[User Extension - ${NAME}] Warning: Unknown cluster/type! Cluster: "${cluster}" - Type: ${type} - Payload: ${JSON.stringify(data.data)}`)
+                }
             }
         });
     }
