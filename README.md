@@ -9,4 +9,4 @@ The extensions listed here are considered **stable** and are not expected to  ge
 ## Unstable
 The extensions listed here are considered **unstable** and are under active development, breaking changes and frequent updates are expected.
 
-- Looks like there are no unstable extensions at the momnent.
+- [miboxer-fut089z/controls-exposer](unstable/miboxer-fut089z/controls-exposer.js): this extension exposes the controls of all MiBoxer FUT089Z remotes
