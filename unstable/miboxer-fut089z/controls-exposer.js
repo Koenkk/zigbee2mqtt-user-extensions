@@ -148,6 +148,7 @@ class MiboxerFut089zControlsExposer {
         
         // Listen for events fired by the remote(s)
         this.eventBus.onDeviceMessage(this, (data) => {
+            try {
             const { vendor, model } = data.device._definition;
             if (vendor === 'MiBoxer' && model === 'FUT089Z') {
                 const ieeeAddr = data.device.zh._ieeeAddr;
@@ -189,6 +190,9 @@ class MiboxerFut089zControlsExposer {
                     console.log(`[User Extension - ${NAME}] Warning: Unknown cluster/type! Cluster: "${cluster}" - Type: ${type} - Payload: ${JSON.stringify(data.data)}`)
                 }
             }
+           } catch(e){
+                console.log(`[User Extension - ${NAME}] ERROR: ${e}`)
+           }
         });
     }
     
