@@ -4,7 +4,7 @@
  * This extension registers and exposes the remote's controls, making them available on the appropriate MQTT topics.
  */
 const DISCOVERY_PREFIX = 'homeassistant';
-const VERSION = "1.0.1-unstable";
+const VERSION = "1.0.2-unstable";
 const NAME = "miboxer-fut089z/controls-exposer";
 
 class MiboxerFut089zControlsExposer {
@@ -24,7 +24,7 @@ class MiboxerFut089zControlsExposer {
     
     _setupDeviceDiscovery(device) {
         const ieeeAddr = device.zh._ieeeAddr;
-        const { vendor, model, description } = device._definition;
+        const { vendor, model, description } = device.definition;
     
         // Set up discovery for the buttons:
         for (const buttonType of ['on', 'off']) {
@@ -125,18 +125,16 @@ class MiboxerFut089zControlsExposer {
     }
     
     _deviceIsSupportedRemote(device) {
-        return device?._definition?.vendor === 'MiBoxer' && device?._definition?.model === 'FUT089Z'
+        return device?.definition?.vendor === 'MiBoxer' && device?.definition?.model === 'FUT089Z';
     }
     
-    _getAvailableMiBoxerRemotes() {
-        return this.zigbee.devices().filter(device=>this._deviceIsSupportedRemote(device));
-    }
-    
-    start() {
-        const miBoxerRemotes = this._getAvailableMiBoxerRemotes() || [];
-        
+    start() {        
         // Setup discovery for remotes that have been added before the extension was started
-        miBoxerRemotes.forEach(device => this._setupDeviceDiscovery(device));
+        for (const device of this.zigbee.devicesIterator()) {
+            if (this._deviceIsSupportedRemote(device)) {
+                this._setupDeviceDiscovery(device);
+            }
+        }
         
         // Setup discovery for remotes that are added while the extension is running
         this.eventBus.onDeviceAnnounce(this, (data) => { // TODO: Research if onDeviceJoined is necessary as well
@@ -149,7 +147,7 @@ class MiboxerFut089zControlsExposer {
         // Listen for events fired by the remote(s)
         this.eventBus.onDeviceMessage(this, (data) => {
             try {
-            const { vendor, model } = data.device._definition;
+            const { vendor, model } = data.device.definition;
             if (vendor === 'MiBoxer' && model === 'FUT089Z') {
                 const ieeeAddr = data.device.zh._ieeeAddr;
                 const { type, groupID, cluster } = data;
