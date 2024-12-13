@@ -4,13 +4,13 @@
  * This extension will read the colorMode attribute if any of the known color attributes get reported.
  */
 class ColorModeReader {
-    constructor(zigbee, mqtt, state, publishEntityState, eventBus, settings, logger) {
+
+    constructor(zigbee, mqtt, state, publishEntityState, eventBus, enableDisableExtension, restartCallback, addExtension, settings, logger) {
         this.zigbee = zigbee;
         this.mqtt = mqtt;
         this.state = state;
         this.publishEntityState = publishEntityState;
         this.eventBus = eventBus;
-        this.settings = settings;
         this.logger = logger;
         this.colorAttributes = [
             'colorTemperature', 'currentX', 'currentY',
@@ -19,15 +19,16 @@ class ColorModeReader {
         ];
     }
 
-    async start() {
+    start() {
         this.logger.info('Starting color_mode helper');
 
         // attach to events
-        this.eventBus.on('deviceMessage', this.onDeviceMessage.bind(this), this.constructor.name);
+        this.eventBus.onDeviceMessage(this, this.onDeviceMessage.bind(this));
     }
 
-    async stop() {
-        this.eventBus.removeListeners(this.constructor.name);
+    stop() {
+        this.logger.info('Stopping color_mode helper');
+        this.eventBus.removeListeners(this);
     }
 
     onDeviceMessage(data) {
