@@ -1,5 +1,5 @@
 # Zigbee2MQTT user extensions
-This repository contains user extensions to be used with Zigbee2MQTT. For more information see the [Zigbee2MQTT docs](https://www.zigbee2mqtt.io/advanced/more/user_extensions.html).
+This repository contains user extensions to be used with Zigbee2MQTT. For more information see the [Zigbee2MQTT docs](https://www.zigbee2mqtt.io/advanced/more/external_extensions.html).
 
 ## Stable
 The extensions listed here are considered **stable** and are not expected to  get breaking changes or a lot of active development.
