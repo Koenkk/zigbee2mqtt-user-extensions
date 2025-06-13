@@ -2,6 +2,9 @@
  * This extension adds a calculated value "dewpoint" to each message reported by a device containing "temperature" and "humidity" but missing "dewpoint".
  * If you are not aware of what use the value of "dewpoint" may be in your setup... just skip this extension. 
  * All others may use this to minimize computing of dewpoint-values in any software based on values reported by zigbee2mqtt.
+ *
+ * Just to make this clear: This will add a value to the sent MQTT-Message, but won't change the device-definition. 
+ * So f.e. HomeAssistant is NOT aware of this new value.
  */
 
 class DewpointCalculator {
