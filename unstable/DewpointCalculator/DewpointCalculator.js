@@ -97,11 +97,6 @@ class DewpointCalculator {
 
         return(+dewpointC.toFixed(2));
     }
-
-    async onMQTTMessage(topic, message) {
-        // console.log({topic, message});
-    }
-
 }
 
 // eslint-disable-next-line no-undef
