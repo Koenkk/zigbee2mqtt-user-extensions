@@ -4,16 +4,19 @@
  * This extension registers and exposes the remote's controls, making them available on the appropriate MQTT topics.
  */
 const DISCOVERY_PREFIX = 'homeassistant';
-const VERSION = "1.0.2-unstable";
+const VERSION = "1.0.3-unstable";
 const NAME = "miboxer-fut089z/controls-exposer";
 
 class MiboxerFut089zControlsExposer {
-    constructor(zigbee, mqtt, state, publishEntityState, eventBus, settings, logger) {
+    constructor(zigbee, mqtt, state, publishEntityState, eventBus, enableDisableExtension, restartCallback, addExtension, settings, logger) {
         this.zigbee = zigbee;
         this.mqtt = mqtt;
         this.state = state;
         this.publishEntityState = publishEntityState;
         this.eventBus = eventBus;
+        this.enableDisableExtension = enableDisableExtension;
+        this.restartCallback = restartCallback;
+        this.addExtension = addExtension;
         this.settings = settings;
         this.logger = logger;
         
