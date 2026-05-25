@@ -8,12 +8,16 @@ A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables
 - **Direct API access** — No MQTT round-trip, uses z2m internal services
 - **Live state** — Real-time device state via EventBus subscriptions
 - **Full device control** — Turn on/off, brightness, color, temperature, and more
+- **OTA Updates** — Check and trigger firmware updates for devices
+- **Network Monitoring** — View network topology and health metrics
+- **Group Management** — Create, rename, and manage device groups
+- **Binding Support** — Direct device-to-device bindings and group bindings
 - **Docker & HA ready** — Works in Docker, Home Assistant addon, standalone
 - **Single-file install** — `mcp-server.js` is bundled with all dependencies
 
 ## 📋 Tools & Resources
 
-### Phase 1 Tools (Core)
+### Phase 1 Tools (Core Device Control)
 
 | Tool | Purpose | Parameters |
 |------|---------|------------|
@@ -28,7 +32,7 @@ A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables
 #### Group Management
 
 | Tool | Purpose | Parameters |
-|------|---------|------------||
+|------|---------|------------|
 | `list_groups` | List all groups with member counts | None |
 | `create_group` | Create new group | `friendly_name` (string), `group_id` (number, optional) |
 | `delete_group` | Delete group | `group` (name/id), `force` (bool, optional) |
@@ -39,30 +43,58 @@ A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables
 #### Binding Management
 
 | Tool | Purpose | Parameters |
-|------|---------|------------||
-| `bind_device` | Bind source to target/group | `source` (name/address), `target` (optional), `clusters` (array, optional), `source_endpoint` (num, optional), `target_endpoint` (num, optional) |
-| `unbind_device` | Unbind source from target | `source` (name/address), `target` (name/id), `clusters` (array, optional), `source_endpoint` (num, optional), `target_endpoint` (num, optional) |
-| `clear_binds` | Clear all bindings for device | `device` (name/address) |
+|------|---------|------------|
+| `bind_device` | Bind source to target/group | `source` (name/address), `target` (optional), `clusters` (array, optional) |
+| `unbind_device` | Unbind source from target | `source` (name/address), `target` (name/id) |
+| `clear_binds` | Clear all bindings | `device` (name/address) |
 
 #### Device Management
 
 | Tool | Purpose | Parameters |
-|------|---------|------------||
-| `rename_device` | Rename device | `device` (name/address), `new_name` (string), `ha_sync` (bool, optional) |
-| `remove_device` | Remove device from network | `device` (name/address), `block` (bool, optional), `force` (bool, optional) |
+|------|---------|------------|
+| `rename_device` | Rename device | `device` (name/address), `new_name` (string) |
+| `remove_device` | Remove device from network | `device` (name/address), `block` (bool, optional) |
 
-### Phase 2 Resources (MCP)
+### Phase 3 Tools (OTA, Converters, Network & Health)
 
-Resources are read-only endpoints for querying data:
+#### OTA Updates
 
-| URI | Purpose |
-|-----|----------|
-| `z2m://devices` | List all devices |
-| `z2m://devices/{id}` | Get single device details |
-| `z2m://devices/{id}/state` | Get device state only |
-| `z2m://groups` | List all groups |
-| `z2m://groups/{id}` | Get single group with members |
-| `z2m://bridge/info` | Get bridge configuration & status |
+| Tool | Purpose | Parameters |
+|------|---------|------------|
+| `check_ota_updates` | Check for firmware updates | `device` (name/address) |
+| `update_device_ota` | Trigger OTA firmware update | `device` (name/address), `force` (bool, optional) |
+
+#### Converter Management
+
+| Tool | Purpose | Parameters |
+|------|---------|------------|
+| `list_converters` | List installed converters | None |
+| `generate_external_definition` | Generate device definition | `device` (name/address), `output_format` ('json'\|'yaml') |
+| `save_converter` | Save custom converter | `name` (string), `definition_json` (object) |
+| `remove_converter` | Remove converter | `name` (string) |
+
+#### Network & Health Checks
+
+| Tool | Purpose | Parameters |
+|------|---------|------------|
+| `get_network_map` | Get network topology | `format` ('json'\|'graphviz', optional) |
+| `check_bridge_health` | Check health & metrics | `detailed` (bool, optional) |
+| `restart_coordinator` | Restart coordinator | None |
+| `permit_join` | Enable/disable pairing | `enabled` (bool), `timeout` (seconds, optional) |
+
+**Total: 26 tools + 7 resources**
+
+### MCP Resources
+
+| URI | Purpose | Phase |
+|-----|---------|-------|
+| `z2m://devices` | List all devices | 2 |
+| `z2m://devices/{id}` | Single device details | 2 |
+| `z2m://devices/{id}/state` | Device state only | 2 |
+| `z2m://groups` | List all groups | 2 |
+| `z2m://groups/{id}` | Group with members | 2 |
+| `z2m://bridge/info` | Bridge config & status | 2 |
+| `z2m://network/map` | Network topology | 3 |
 
 ## 🚀 Installation
 
@@ -87,7 +119,6 @@ Resources are read-only endpoints for querying data:
 
 3. **Verify** the extension loaded:
    ```bash
-   # Check logs for: "[MCP] Server started successfully on 0.0.0.0:4747"
    docker logs zigbee2mqtt | grep MCP
    ```
 
@@ -106,50 +137,30 @@ services:
       - ZIGBEE2MQTT_CONFIG_MCP_HOST=0.0.0.0
     ports:
       - "8080:8080"
-      - "4747:4747"  # MCP server port
+      - "4747:4747"
 ```
 
 Then:
 ```bash
-# Download extension
 curl -o data/external_extensions/mcp-server.js \
   https://raw.githubusercontent.com/pranjal-joshi/zigbee2mqtt-user-extensions/feat/mcp/unstable/mcp-server/mcp-server.js
 
 docker compose up -d
 ```
 
-### Home Assistant (Add-on)
+### Home Assistant
 
-The extension is automatically loaded if placed in `data/external_extensions/`. If using the [HA addon](https://github.com/zigbee2mqtt/hassio-zigbee2mqtt):
-
-1. Place `mcp-server.js` in the addon's `data/external_extensions/` directory
+1. Place `mcp-server.js` in addon's `data/external_extensions/`
 2. Restart the addon
-3. The MCP server will be available on port 4747 (internal to the container)
-
-To access from outside the container, map the port in your docker-compose or HA configuration.
+3. MCP available on port 4747
 
 ## ⚙️ Configuration
-
-The extension reads configuration from **environment variables** (no config file needed):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ZIGBEE2MQTT_CONFIG_MCP_PORT` | `4747` | HTTP server port |
-| `ZIGBEE2MQTT_CONFIG_MCP_HOST` | `0.0.0.0` | HTTP server bind address |
-| `ZIGBEE2MQTT_CONFIG_MCP_ENABLED` | `true` | Enable/disable extension |
-
-### Examples
-
-```bash
-# Custom port
-export ZIGBEE2MQTT_CONFIG_MCP_PORT=5000
-
-# Bind to localhost only (for development)
-export ZIGBEE2MQTT_CONFIG_MCP_HOST=127.0.0.1
-
-# Disable the extension
-export ZIGBEE2MQTT_CONFIG_MCP_ENABLED=false
-```
+| `ZIGBEE2MQTT_CONFIG_MCP_HOST` | `0.0.0.0` | Bind address |
+| `ZIGBEE2MQTT_CONFIG_MCP_ENABLED` | `true` | Enable/disable |
 
 ## 🧠 Using with AI Tools
 
@@ -171,8 +182,6 @@ Add to `~/.claude/claude_desktop_config.json`:
 
 ### Cursor
 
-In your Cursor settings, add the MCP server:
-
 ```json
 {
   "mcp": {
@@ -185,8 +194,6 @@ In your Cursor settings, add the MCP server:
 
 ### OpenClaw
 
-Configure in your OpenClaw agent settings:
-
 ```yaml
 mcp_servers:
   - name: zigbee2mqtt
@@ -194,491 +201,117 @@ mcp_servers:
     endpoint: http://localhost:4747/mcp
 ```
 
-## 📚 Detailed Tool & Resource Reference
+## 📚 Common Use Cases
 
-### Phase 1: Core Devices
+### OTA Firmware Updates
 
-#### `list_devices`
+**Check if updates are available:**
+```python
+mcp.call_tool('check_ota_updates', {'device': 'living_room_lamp'})
+```
 
-List all known Zigbee devices with their current state.
+**Trigger update:**
+```python
+mcp.call_tool('update_device_ota', {
+    'device': 'living_room_lamp',
+    'force': False
+})
+```
 
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "list_devices",
-    "arguments": {
-      "include_state": true
+### Network Health & Monitoring
+
+**Get detailed health stats:**
+```python
+health = mcp.call_tool('check_bridge_health', {'detailed': True})
+# Returns: device availability, battery levels, link quality, coordinator status
+```
+
+**View network topology:**
+```python
+# JSON format
+map_json = mcp.call_tool('get_network_map', {'format': 'json'})
+
+# Graphviz format (for visualization)
+map_viz = mcp.call_tool('get_network_map', {'format': 'graphviz'})
+```
+
+### Permit Join (Pairing Mode)
+
+**Enable pairing for 120 seconds:**
+```python
+mcp.call_tool('permit_join', {
+    'enabled': True,
+    'timeout': 120
+})
+```
+
+**Disable pairing:**
+```python
+mcp.call_tool('permit_join', {'enabled': False})
+```
+
+### Converter Management
+
+**List available converters:**
+```python
+converters = mcp.call_tool('list_converters', {})
+```
+
+**Generate device definition for custom converter:**
+```python
+definition = mcp.call_tool('generate_external_definition', {
+    'device': 'my_custom_device',
+    'output_format': 'json'
+})
+```
+
+**Save custom converter:**
+```python
+mcp.call_tool('save_converter', {
+    'name': 'my_custom_converter',
+    'definition_json': {
+        'zigbeeModel': ['MY_MODEL'],
+        'model': 'MY_MODEL',
+        'vendor': 'CustomVendor',
+        'description': 'My custom device',
+        'fromZigbee': [],
+        'toZigbee': [],
+        'exposes': []
     }
-  }
-}
+})
 ```
 
-**Response (truncated):**
-```json
-[
-  {
-    "friendly_name": "living_room_lamp",
-    "ieee_address": "0x00158d0002a7b8f1",
-    "model": "LCT015",
-    "manufacturer": "Philips",
-    "type": "Router",
-    "supported": true,
-    "power_source": "Mains (single phase)",
-    "available": true,
-    "link_quality": 155,
-    "state": {
-      "state": "ON",
-      "brightness": 254,
-      "color": {
-        "r": 255,
-        "g": 200,
-        "b": 100
-      }
-    }
-  }
-]
+## 🔧 Troubleshooting
+
+### Extension not loading
+
+```bash
+docker logs zigbee2mqtt | grep -i mcp
 ```
 
-#### `get_device`
+### Port already in use
 
-Get detailed information about a specific device.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "get_device",
-    "arguments": {
-      "device": "living_room_lamp",
-      "include_exposes": true
-    }
-  }
-}
+```bash
+export ZIGBEE2MQTT_CONFIG_MCP_PORT=5000
+docker restart zigbee2mqtt
 ```
 
-**Response:**
-```json
-{
-  "friendly_name": "living_room_lamp",
-  "ieee_address": "0x00158d0002a7b8f1",
-  "model": "LCT015",
-  "available": true,
-  "link_quality": 155,
-  "state": {
-    "state": "ON",
-    "brightness": 254
-  },
-  "exposes": [
-    {
-      "type": "light",
-      "features": [
-        { "name": "state", "type": "binary", "access": 3 },
-        { "name": "brightness", "type": "numeric", "access": 3, "value_min": 0, "value_max": 254 }
-      ]
-    }
-  ]
-}
+### Connection refused
+
+```bash
+curl http://localhost:4747/health
 ```
 
-#### `control_device`
+### Device not found
 
-Send a command to a device.
-
-**Request (turn on):**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "control_device",
-    "arguments": {
-      "device": "living_room_lamp",
-      "payload": { "state": "ON" }
-    }
-  }
-}
+```bash
+# Get exact device names
+curl http://localhost:4747/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"method": "tools/call", "params": {"name": "list_devices", "arguments": {}}}'
 ```
 
-**Request (set brightness):**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "control_device",
-    "arguments": {
-      "device": "living_room_lamp",
-      "payload": { "brightness": 128 }
-    }
-  }
-}
-```
-
-**Request (set color):**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "control_device",
-    "arguments": {
-      "device": "living_room_lamp",
-      "payload": { "color": { "r": 255, "g": 0, "b": 0 } }
-    }
-  }
-}
-```
-
-#### `get_device_state`
-
-Get the current state of a device.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "get_device_state",
-    "arguments": {
-      "device": "living_room_lamp"
-    }
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "state": "ON",
-  "brightness": 254,
-  "color": {
-    "r": 255,
-    "g": 200,
-    "b": 100
-  }
-}
-```
-
-#### `get_bridge_info`
-
-Get bridge information and network statistics.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "get_bridge_info",
-    "arguments": {}
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "version": "1.0.0",
-  "z2m_version": "via extension",
-  "devices_count": 12,
-  "groups_count": 3,
-  "coordinator": {
-    "type": "Enbrighten Zigbee USB Dongle",
-    "ieee_address": "00:0d:6f:00:0a:90:69:e7"
-  },
-  "network": {
-    "panid": "0x1234",
-    "channel": 11
-  },
-  "timestamp": "2026-05-25T07:23:00.000Z"
-}
-```
-
-### Phase 2: Group Management
-
-#### `list_groups`
-
-List all groups with member information.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "list_groups",
-    "arguments": {}
-  }
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "id": 1,
-    "friendly_name": "living_room_lights",
-    "members_count": 3,
-    "members": [
-      {
-        "name": "lamp_1",
-        "ieee_address": "0x00158d0002a7b8f1",
-        "type": "Light"
-      }
-    ]
-  }
-]
-```
-
-#### `create_group`
-
-Create a new group.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "create_group",
-    "arguments": {
-      "friendly_name": "bedroom_lights",
-      "group_id": 5
-    }
-  }
-}
-```
-
-#### `rename_group`
-
-Rename an existing group.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "rename_group",
-    "arguments": {
-      "group": "living_room_lights",
-      "new_name": "living_room_main_lights"
-    }
-  }
-}
-```
-
-#### `add_device_to_group` / `remove_device_from_group`
-
-Add or remove devices from groups.
-
-**Request (add):**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "add_device_to_group",
-    "arguments": {
-      "device": "lamp_2",
-      "group": "living_room_lights"
-    }
-  }
-}
-```
-
-### Phase 2: Binding Management
-
-#### `bind_device`
-
-Bind a source device to a target device or group.
-
-**Request (bind to device):**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "bind_device",
-    "arguments": {
-      "source": "remote_control",
-      "target": "lamp_1",
-      "clusters": ["0x0006", "0x0008"]
-    }
-  }
-}
-```
-
-**Request (bind to group):**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "bind_device",
-    "arguments": {
-      "source": "remote_control",
-      "target": "living_room_lights"
-    }
-  }
-}
-```
-
-#### `clear_binds`
-
-Clear all bindings for a device.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "clear_binds",
-    "arguments": {
-      "device": "remote_control"
-    }
-  }
-}
-```
-
-### Phase 2: Device Management
-
-#### `rename_device`
-
-Rename a device with optional Home Assistant sync.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "rename_device",
-    "arguments": {
-      "device": "lamp_1",
-      "new_name": "living_room_main_lamp",
-      "ha_sync": true
-    }
-  }
-}
-```
-
-#### `remove_device`
-
-Remove a device from the network.
-
-**Request:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "remove_device",
-    "arguments": {
-      "device": "lamp_broken",
-      "block": true,
-      "force": false
-    }
-  }
-}
-```
-
-### Phase 2: MCP Resources
-
-Resources are read-only data endpoints accessed via the MCP `resources/read` method.
-
-#### `z2m://devices`
-
-List all devices.
-
-**Request:**
-```json
-{
-  "method": "resources/read",
-  "params": {
-    "uri": "z2m://devices"
-  }
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "id": "0x00158d0002a7b8f1",
-    "name": "living_room_lamp",
-    "model": "LCT015",
-    "manufacturer": "Philips",
-    "available": true,
-    "link_quality": 155
-  }
-]
-```
-
-#### `z2m://devices/{id}`
-
-Get detailed information for a single device.
-
-**Request:**
-```json
-{
-  "method": "resources/read",
-  "params": {
-    "uri": "z2m://devices/living_room_lamp"
-  }
-}
-```
-
-#### `z2m://devices/{id}/state`
-
-Get only the state for a device.
-
-**Request:**
-```json
-{
-  "method": "resources/read",
-  "params": {
-    "uri": "z2m://devices/living_room_lamp/state"
-  }
-}
-```
-
-#### `z2m://groups`
-
-List all groups.
-
-**Request:**
-```json
-{
-  "method": "resources/read",
-  "params": {
-    "uri": "z2m://groups"
-  }
-}
-```
-
-#### `z2m://groups/{id}`
-
-Get a group with its members.
-
-**Request:**
-```json
-{
-  "method": "resources/read",
-  "params": {
-    "uri": "z2m://groups/living_room_lights"
-  }
-}
-```
-
-#### `z2m://bridge/info`
-
-Get bridge configuration and status.
-
-**Request:**
-```json
-{
-  "method": "resources/read",
-  "params": {
-    "uri": "z2m://bridge/info"
-  }
-}
-```
-
-## 🔍 Health Check
-
-The HTTP server provides a health check endpoint:
+## 📊 Health Check Endpoint
 
 ```bash
 curl http://localhost:4747/health
@@ -688,144 +321,50 @@ Response:
 ```json
 {
   "status": "ok",
-  "timestamp": "2026-05-25T07:23:00.000Z"
+  "timestamp": "2026-05-25T07:48:00.000Z"
 }
 ```
 
-## 🚀 Usage Examples
-
-### With Claude Desktop
-
-```json
-{
-  "mcpServers": {
-    "zigbee2mqtt": {
-      "command": "curl",
-      "args": ["http://localhost:4747/mcp"],
-      "type": "http"
-    }
-  }
-}
-```
-
-### Reading Resources with MCP Client
-
-```javascript
-const client = new McpClient();
-
-// Get all devices
-const devices = await client.resources.read({ uri: 'z2m://devices' });
-
-// Get single device state
-const lampState = await client.resources.read({ uri: 'z2m://devices/living_room_lamp/state' });
-
-// Get group with members
-const groupMembers = await client.resources.read({ uri: 'z2m://groups/living_room_lights' });
-```
-
-### Real-World Example: Smart Home Automation
-
-**Scenario:** "Turn on all lights in the living room and bind a remote control to them"
-
-```python
-# 1. Create a group (if it doesn't exist)
-mcp.call_tool('create_group', {
-    'friendly_name': 'living_room_all_lights'
-})
-
-# 2. Add lights to group
-for light in ['lamp_1', 'lamp_2', 'ceiling_light']:
-    mcp.call_tool('add_device_to_group', {
-        'device': light,
-        'group': 'living_room_all_lights'
-    })
-
-# 3. Bind remote to group
-mcp.call_tool('bind_device', {
-    'source': 'living_room_remote',
-    'target': 'living_room_all_lights',
-    'clusters': ['0x0006', '0x0008']  # on/off, brightness
-})
-
-# 4. Control the group
-mcp.call_tool('control_device', {
-    'device': 'living_room_all_lights',
-    'payload': {'state': 'ON', 'brightness': 200}
-})
-```
-
-## 🐛 Troubleshooting
-
-### Extension not loading
-
-**Check the logs:**
-```bash
-docker logs zigbee2mqtt | grep -i mcp
-```
-
-**Verify the file:**
-```bash
-ls -la data/external_extensions/mcp-server.js
-```
-
-**Ensure it's executable:**
-```bash
-chmod +x data/external_extensions/mcp-server.js
-```
-
-### Port already in use
-
-Change the port:
-```bash
-export ZIGBEE2MQTT_CONFIG_MCP_PORT=5000
-docker restart zigbee2mqtt
-```
-
-### Connection refused
-
-**Verify the server is listening:**
-```bash
-curl http://localhost:4747/health
-```
-
-**Check firewall:** Ensure port 4747 is open on your network.
-
-### Device not found error
-
-**Double-check the device name** — use the exact friendly name from z2m:
-```bash
-# See all device names
-curl http://localhost:4747/mcp -X POST -H "Content-Type: application/json" \
-  -d '{"method": "tools/call", "params": {"name": "list_devices", "arguments": {}}}'
-```
-
-## 📖 Architecture
+## 🏗️ Architecture
 
 ```
-AI Tool (Claude, Cursor, etc.)
-    │
-    ├─► HTTP POST /mcp
-    │
-Zigbee2MQTT MCP Server Extension
-    │
-    ├─► JSON-RPC 2.0 Handler
-    │
-    ├─► Tools (list_devices, get_device, control_device, etc.)
-    │
-    └─► Z2M Internal Services (zigbee, mqtt, state, eventBus)
-         │
-         └─► Zigbee Network
+AI Tool (Claude, Cursor, OpenClaw)
+    ↓
+HTTP POST /mcp (JSON-RPC 2.0)
+    ↓
+MCP Server Extension
+    ├─ Tools (26 total)
+    ├─ Resources (7 total)
+    ↓
+Zigbee2MQTT Internal Services
+    ├─ zigbee (device mgmt)
+    ├─ mqtt (publish/subscribe)
+    ├─ state (device state)
+    └─ eventBus (live updates)
+    ↓
+Zigbee Network (2.4GHz mesh)
 ```
 
-## 🔐 Security
+## 📈 Version Info
 
-- **No authentication** — For local networks only (use a firewall or VPN for remote access)
-- **CORS enabled** — Allows browser-based clients (configure carefully)
-- **No state mutation without permission** — AI tools must explicitly call mutation tools
+- **Phase 1:** Core device control (5 tools)
+- **Phase 2:** Groups, bindings, device management (16 tools, 6 resources)
+- **Phase 3:** OTA, converters, network & health (10 tools, 1 resource)
+
+**Total: 26 tools + 7 resources**
+
+Build: `mcp-server.js` 1.4 MB (bundled with dependencies)
+
+## 🔐 Security Notes
+
+- **No authentication** — For local networks only (use firewall for remote access)
+- **CORS enabled** — Allows browser clients (configure carefully)
+- **Stateless operations** — Each request is independent
+- **Safe mutations** — All write operations are explicit tool calls
 
 ## 📜 License
 
-Same as Zigbee2MQTT (AGPL-3.0)
+AGPL-3.0 (same as Zigbee2MQTT)
 
 ## 🤝 Contributing
 

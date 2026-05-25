@@ -32673,6 +32673,470 @@ var require_mcp_server_impl = __commonJS({
             }
           }
         );
+        this.server.tool(
+          "check_ota_updates",
+          {
+            device: z.string().describe("Device friendly name or IEEE address")
+          },
+          async ({ device }) => {
+            try {
+              const entity = this.zigbee.resolveEntity(device);
+              if (!entity) {
+                return {
+                  content: [{ type: "text", text: `Device not found: ${device}` }],
+                  isError: true
+                };
+              }
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const payload = {
+                device: entity.name
+              };
+              this.mqtt.publish(`${baseTopic}/bridge/request/device/ota_update/check`, JSON.stringify(payload));
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    message: `OTA check request sent for: ${entity.name}`,
+                    device: entity.name,
+                    ieee_address: entity.ieeeAddr
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] check_ota_updates error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "update_device_ota",
+          {
+            device: z.string().describe("Device friendly name or IEEE address"),
+            force: z.boolean().optional().describe("Force update even if already on latest (default: false)")
+          },
+          async ({ device, force = false }) => {
+            try {
+              const entity = this.zigbee.resolveEntity(device);
+              if (!entity) {
+                return {
+                  content: [{ type: "text", text: `Device not found: ${device}` }],
+                  isError: true
+                };
+              }
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const payload = {
+                device: entity.name,
+                force
+              };
+              this.mqtt.publish(`${baseTopic}/bridge/request/device/ota_update/update`, JSON.stringify(payload));
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    message: `OTA update request sent for: ${entity.name}`,
+                    device: entity.name,
+                    force
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] update_device_ota error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "list_converters",
+          {},
+          async () => {
+            try {
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const converters = [];
+              const converterList = this.zigbee.deviceDefinitions || [];
+              for (const converter of converterList) {
+                converters.push({
+                  name: converter.name || "unknown",
+                  model: converter.model || "unknown",
+                  manufacturer: converter.manufacturerName || "unknown",
+                  type: "built-in"
+                });
+              }
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    converters,
+                    total_count: converters.length
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] list_converters error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "generate_external_definition",
+          {
+            device: z.string().describe("Device friendly name or IEEE address"),
+            output_format: z.enum(["json", "yaml"]).optional().describe("Output format (default: json)")
+          },
+          async ({ device, output_format = "json" }) => {
+            try {
+              const entity = this.zigbee.resolveEntity(device);
+              if (!entity) {
+                return {
+                  content: [{ type: "text", text: `Device not found: ${device}` }],
+                  isError: true
+                };
+              }
+              const definition = {
+                zigbeeModel: [entity.model || "unknown"],
+                model: entity.model || "unknown",
+                vendor: entity.manufacturerName || "unknown",
+                description: `Auto-generated definition for ${entity.name}`,
+                devices: [
+                  {
+                    ieeeAddr: entity.ieeeAddr
+                  }
+                ],
+                fromZigbee: [],
+                toZigbee: [],
+                exposes: entity.definition?.exposes || [],
+                meta: {
+                  disableDefaultResponse: true
+                },
+                ota: null
+              };
+              let output = "";
+              if (output_format === "yaml") {
+                output = `zigbeeModel:
+  - ${definition.zigbeeModel[0]}
+model: ${definition.model}
+vendor: ${definition.vendor}
+description: ${definition.description}
+devices:
+  - ieeeAddr: ${definition.devices[0].ieeeAddr}
+fromZigbee: []
+toZigbee: []
+meta:
+  disableDefaultResponse: true
+`;
+              } else {
+                output = JSON.stringify(definition, null, 2);
+              }
+              return {
+                content: [{
+                  type: "text",
+                  text: output
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] generate_external_definition error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "save_converter",
+          {
+            name: z.string().describe('Converter name (e.g., "my_custom_converter")'),
+            definition_json: z.record(z.unknown()).describe("Converter definition object")
+          },
+          async ({ name, definition_json }) => {
+            try {
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const payload = {
+                converter_name: name,
+                definition: definition_json
+              };
+              this.mqtt.publish(`${baseTopic}/bridge/request/device/add_external_converter`, JSON.stringify(payload));
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    message: `Save converter request sent: ${name}`
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] save_converter error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "remove_converter",
+          {
+            name: z.string().describe("Converter name to remove")
+          },
+          async ({ name }) => {
+            try {
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const payload = {
+                converter_name: name
+              };
+              this.mqtt.publish(`${baseTopic}/bridge/request/device/remove_external_converter`, JSON.stringify(payload));
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    message: `Remove converter request sent: ${name}`
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] remove_converter error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "get_network_map",
+          {
+            format: z.enum(["json", "graphviz"]).optional().describe("Output format (default: json)")
+          },
+          async ({ format = "json" }) => {
+            try {
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              this.mqtt.publish(`${baseTopic}/bridge/request/networkmap/routes`, JSON.stringify({
+                format
+              }));
+              const devices = [];
+              const links = [];
+              const coordinator = this.zigbee.controller;
+              for (const device of this.zigbee.devicesIterator()) {
+                devices.push({
+                  id: device.ieeeAddr,
+                  name: device.name,
+                  type: device.type,
+                  model: device.model,
+                  available: device.available !== false,
+                  link_quality: device.linkquality || 0,
+                  parent: device.parent ? {
+                    id: device.parent.ieeeAddr,
+                    name: device.parent.name
+                  } : null
+                });
+                if (device.parent) {
+                  links.push({
+                    source: device.parent.ieeeAddr,
+                    target: device.ieeeAddr,
+                    quality: device.linkquality || 0
+                  });
+                }
+              }
+              let output = "";
+              if (format === "graphviz") {
+                output = "digraph {\n";
+                output += "  rankdir=LR;\n";
+                output += `  coordinator [label="${coordinator?.meta?.product || "Coordinator"}", shape=box];
+`;
+                for (const device of devices) {
+                  const label = `${device.name}
+(${device.type})`;
+                  output += `  "${device.id}" [label="${label}"];
+`;
+                }
+                for (const link of links) {
+                  output += `  "${link.source}" -> "${link.target}" [label="${link.quality}"];
+`;
+                }
+                output += "}\n";
+              } else {
+                output = JSON.stringify({
+                  devices,
+                  links,
+                  coordinator: {
+                    id: coordinator?.ieee_addr || "unknown",
+                    type: coordinator?.meta?.product || "unknown"
+                  }
+                }, null, 2);
+              }
+              return {
+                content: [{
+                  type: "text",
+                  text: output
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] get_network_map error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "check_bridge_health",
+          {
+            detailed: z.boolean().optional().describe("Include detailed device health (default: false)")
+          },
+          async ({ detailed = false }) => {
+            try {
+              const devices = [];
+              let totalDevices = 0;
+              let availableDevices = 0;
+              let totalBatteryDevices = 0;
+              let lowBatteryDevices = 0;
+              let totalLinkQuality = 0;
+              let minLinkQuality = 255;
+              let maxLinkQuality = 0;
+              for (const device of this.zigbee.devicesIterator()) {
+                totalDevices++;
+                if (device.available !== false) availableDevices++;
+                const state = this.state.get(device) || {};
+                const battery = state.battery;
+                if (battery !== void 0) {
+                  totalBatteryDevices++;
+                  if (battery < 20) lowBatteryDevices++;
+                }
+                const lq = device.linkquality || 0;
+                totalLinkQuality += lq;
+                minLinkQuality = Math.min(minLinkQuality, lq);
+                maxLinkQuality = Math.max(maxLinkQuality, lq);
+                if (detailed) {
+                  devices.push({
+                    name: device.name,
+                    available: device.available !== false,
+                    battery: battery || null,
+                    link_quality: lq,
+                    last_seen: device.lastSeen ? new Date(device.lastSeen).toISOString() : null
+                  });
+                }
+              }
+              const avgLinkQuality = totalDevices > 0 ? (totalLinkQuality / totalDevices).toFixed(1) : 0;
+              const availabilityPercent = totalDevices > 0 ? (availableDevices / totalDevices * 100).toFixed(1) : 0;
+              const health = {
+                status: availableDevices === totalDevices ? "healthy" : "degraded",
+                devices: {
+                  total: totalDevices,
+                  available: availableDevices,
+                  unavailable: totalDevices - availableDevices,
+                  availability_percent: parseFloat(availabilityPercent)
+                },
+                battery: {
+                  monitored: totalBatteryDevices,
+                  low_battery: lowBatteryDevices,
+                  low_battery_threshold: "< 20%"
+                },
+                link_quality: {
+                  average: parseFloat(avgLinkQuality),
+                  min: minLinkQuality,
+                  max: maxLinkQuality
+                },
+                coordinator: {
+                  type: this.zigbee.controller?.meta?.product || "unknown",
+                  ieee_address: this.zigbee.controller?.ieee_addr || "unknown",
+                  pan_id: this.zigbee.controller?.meta?.pan_id || "unknown",
+                  channel: this.zigbee.controller?.meta?.channel || "unknown"
+                },
+                timestamp: (/* @__PURE__ */ new Date()).toISOString()
+              };
+              if (detailed) {
+                health.devices_detail = devices;
+              }
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify(health, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] check_bridge_health error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "restart_coordinator",
+          {},
+          async () => {
+            try {
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const payload = {};
+              this.mqtt.publish(`${baseTopic}/bridge/request/restart`, JSON.stringify(payload));
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    message: "Restart coordinator request sent",
+                    warning: "Bridge will be temporarily unavailable"
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] restart_coordinator error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
+        this.server.tool(
+          "permit_join",
+          {
+            enabled: z.boolean().describe("Enable/disable permit join"),
+            timeout: z.number().optional().describe("Timeout in seconds (default: 0 = no timeout)")
+          },
+          async ({ enabled, timeout = 0 }) => {
+            try {
+              const baseTopic = this.settings.get().mqtt.base_topic;
+              const payload = {
+                value: enabled,
+                ...timeout > 0 && { timeout }
+              };
+              this.mqtt.publish(`${baseTopic}/bridge/request/permit_join`, JSON.stringify(payload));
+              return {
+                content: [{
+                  type: "text",
+                  text: JSON.stringify({
+                    status: "ok",
+                    message: enabled ? "Permit join enabled" : "Permit join disabled",
+                    enabled,
+                    timeout: timeout > 0 ? `${timeout}s` : "no timeout"
+                  }, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] permit_join error: ${error.message}`);
+              return {
+                content: [{ type: "text", text: `Error: ${error.message}` }],
+                isError: true
+              };
+            }
+          }
+        );
       }
       // ========== PHASE 2: MCP RESOURCES ==========
       _registerResources() {
@@ -32862,6 +33326,59 @@ var require_mcp_server_impl = __commonJS({
               };
             } catch (error) {
               this.logger.error(`[MCP] Resource z2m://bridge/info error: ${error.message}`);
+              throw error;
+            }
+          }
+        );
+        this.server.resource(
+          "z2m://network/map",
+          { uri: { type: "string" } },
+          async () => {
+            try {
+              const devices = [];
+              const links = [];
+              const coordinator = this.zigbee.controller;
+              for (const device of this.zigbee.devicesIterator()) {
+                devices.push({
+                  id: device.ieeeAddr,
+                  name: device.name,
+                  type: device.type,
+                  model: device.model,
+                  available: device.available !== false,
+                  link_quality: device.linkquality || 0,
+                  parent: device.parent ? {
+                    id: device.parent.ieeeAddr,
+                    name: device.parent.name
+                  } : null
+                });
+                if (device.parent) {
+                  links.push({
+                    source: device.parent.ieeeAddr,
+                    target: device.ieeeAddr,
+                    quality: device.linkquality || 0
+                  });
+                }
+              }
+              const networkMap = {
+                devices,
+                links,
+                coordinator: {
+                  id: coordinator?.ieee_addr || "unknown",
+                  type: coordinator?.meta?.product || "unknown",
+                  pan_id: coordinator?.meta?.pan_id || "unknown",
+                  channel: coordinator?.meta?.channel || "unknown"
+                },
+                timestamp: (/* @__PURE__ */ new Date()).toISOString()
+              };
+              return {
+                contents: [{
+                  uri: "z2m://network/map",
+                  mimeType: "application/json",
+                  text: JSON.stringify(networkMap, null, 2)
+                }]
+              };
+            } catch (error) {
+              this.logger.error(`[MCP] Resource z2m://network/map error: ${error.message}`);
               throw error;
             }
           }
