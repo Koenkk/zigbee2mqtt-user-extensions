@@ -32022,7 +32022,7 @@ var require_package = __commonJS({
         node: ">=20.15.0"
       },
       devDependencies: {
-        esbuild: "^0.25.0"
+        esbuild: "^0.25.12"
       },
       dependencies: {
         "@modelcontextprotocol/sdk": "^1.7.0",
@@ -32035,7 +32035,7 @@ var require_package = __commonJS({
 // src/mcp-server-impl.js
 var require_mcp_server_impl = __commonJS({
   "src/mcp-server-impl.js"(exports2, module2) {
-    var { McpServer } = require_mcp();
+    var { McpServer, ResourceTemplate } = require_mcp();
     var { z } = require_zod();
     var ErrorHandler = {
       NOT_FOUND: (type, value) => ({
@@ -32206,8 +32206,8 @@ var require_mcp_server_impl = __commonJS({
                 type: entity.type || "unknown",
                 supported: entity.supported !== false,
                 power_source: entity.powerSource || "unknown",
-                available: entity.available !== false,
-                link_quality: entity.linkquality || null,
+                available: entity.type !== "Unknown",
+                link_quality: null,
                 last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
                 state: this._getDeviceState(entity)
               };
@@ -32843,7 +32843,7 @@ var require_mcp_server_impl = __commonJS({
             try {
               const baseTopic = this.settings.get().mqtt.base_topic;
               const converters = [];
-              const converterList = this.zigbee.deviceDefinitions || [];
+              const converterList = [];
               for (const converter of converterList) {
                 converters.push({
                   name: converter.name || "unknown",
@@ -33223,10 +33223,9 @@ meta:
       }
       // ========== PHASE 2: MCP RESOURCES ==========
       _registerResources() {
-        const { ResourceTemplate } = require_types2();
         this.server.resource(
           "z2m://devices",
-          { uri: { type: "string" } },
+          "z2m://devices",
           async () => {
             try {
               const devices = [];
@@ -33256,10 +33255,10 @@ meta:
         );
         this.server.resource(
           "z2m://devices/{id}",
-          { uri: { type: "string" } },
-          async (uri) => {
+          new ResourceTemplate("z2m://devices/{id}", { list: void 0 }),
+          async (uri, params) => {
             try {
-              const id = uri.split("/").pop();
+              const id = params.id;
               const entity = this.zigbee.resolveEntity(id);
               if (!entity) {
                 throw new Error(`Device not found: ${id}`);
@@ -33272,8 +33271,8 @@ meta:
                 type: entity.type || "unknown",
                 supported: entity.supported !== false,
                 power_source: entity.powerSource || "unknown",
-                available: entity.available !== false,
-                link_quality: entity.linkquality || null,
+                available: entity.type !== "Unknown",
+                link_quality: null,
                 last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
                 state: this.state.get(entity) || {},
                 exposes: entity.definition?.exposes || []
@@ -33293,10 +33292,10 @@ meta:
         );
         this.server.resource(
           "z2m://devices/{id}/state",
-          { uri: { type: "string" } },
-          async (uri) => {
+          new ResourceTemplate("z2m://devices/{id}/state", { list: void 0 }),
+          async (uri, params) => {
             try {
-              const id = uri.split("/")[2];
+              const id = params.id;
               const entity = this.zigbee.resolveEntity(id);
               if (!entity) {
                 throw new Error(`Device not found: ${id}`);
@@ -33317,7 +33316,7 @@ meta:
         );
         this.server.resource(
           "z2m://groups",
-          { uri: { type: "string" } },
+          "z2m://groups",
           async () => {
             try {
               const groups = [];
@@ -33343,10 +33342,10 @@ meta:
         );
         this.server.resource(
           "z2m://groups/{id}",
-          { uri: { type: "string" } },
-          async (uri) => {
+          new ResourceTemplate("z2m://groups/{id}", { list: void 0 }),
+          async (uri, params) => {
             try {
-              const id = uri.split("/").pop();
+              const id = params.id;
               const groupId = isNaN(id) ? id : parseInt(id, 10);
               let group = null;
               for (const g of this.zigbee.groupsIterator()) {
@@ -33383,7 +33382,7 @@ meta:
         );
         this.server.resource(
           "z2m://bridge/info",
-          { uri: { type: "string" } },
+          "z2m://bridge/info",
           async () => {
             try {
               const bridgeInfo = {
@@ -33415,7 +33414,7 @@ meta:
         );
         this.server.resource(
           "z2m://network/map",
-          { uri: { type: "string" } },
+          "z2m://network/map",
           async () => {
             try {
               const devices = [];
@@ -35000,7 +34999,7 @@ var McpServerExtension = class {
   async stop() {
     if (!this.httpTransport) return;
     try {
-      this.eventBus.removeAllListeners(this);
+      this.eventBus.removeListeners(this);
       await this.httpTransport.stop();
       this.logger.info("[MCP] Server stopped");
     } catch (error) {

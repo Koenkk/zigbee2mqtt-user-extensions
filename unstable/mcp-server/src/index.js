@@ -96,7 +96,7 @@ class McpServerExtension {
 
     try {
       // Clean up EventBus listeners
-      this.eventBus.removeAllListeners(this)
+      this.eventBus.removeListeners(this)
       
       await this.httpTransport.stop()
       this.logger.info('[MCP] Server stopped')

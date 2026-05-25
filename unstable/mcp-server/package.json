@@ -10,7 +10,7 @@
     "node": ">=20.15.0"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.12"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.7.0",

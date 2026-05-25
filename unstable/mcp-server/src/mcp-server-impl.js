@@ -33,7 +33,7 @@
  *  - z2m://network/map
  */
 
-const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js')
+const { McpServer, ResourceTemplate } = require('@modelcontextprotocol/sdk/server/mcp.js')
 const { z } = require('zod')
 
 /**
@@ -246,8 +246,8 @@ class McpServerImpl {
             type: entity.type || 'unknown',
             supported: entity.supported !== false,
             power_source: entity.powerSource || 'unknown',
-            available: entity.available !== false,
-            link_quality: entity.linkquality || null,
+            available: entity.type !== 'Unknown',
+            link_quality: null,
             last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
             state: this._getDeviceState(entity)
           }
@@ -1004,10 +1004,10 @@ class McpServerImpl {
           const baseTopic = this.settings.get().mqtt.base_topic
           const converters = []
 
-          // Get converters from Zigbee2MQTT state
-          // Note: Actual converter list comes from z2m's converter registry
-          // This is a placeholder that queries via MQTT bridge request
-          const converterList = this.zigbee.deviceDefinitions || []
+          // Note: z2m doesn't expose converter list via deviceDefinitions property
+          // This is a placeholder — actual converter enumeration requires file system
+          // or MQTT bridge request in a future phase
+          const converterList = []
 
           for (const converter of converterList) {
             converters.push({
@@ -1438,14 +1438,12 @@ class McpServerImpl {
   // ========== PHASE 2: MCP RESOURCES ==========
 
   _registerResources() {
-    const { ResourceTemplate } = require('@modelcontextprotocol/sdk/types.js')
-
     /**
      * z2m://devices — List all devices
      */
     this.server.resource(
       'z2m://devices',
-      { uri: { type: 'string' } },
+      'z2m://devices',
       async () => {
         try {
           const devices = []
@@ -1480,10 +1478,10 @@ class McpServerImpl {
      */
     this.server.resource(
       'z2m://devices/{id}',
-      { uri: { type: 'string' } },
-      async (uri) => {
+      new ResourceTemplate('z2m://devices/{id}', { list: undefined }),
+      async (uri, params) => {
         try {
-          const id = uri.split('/').pop()
+          const id = params.id
           const entity = this.zigbee.resolveEntity(id)
           if (!entity) {
             throw new Error(`Device not found: ${id}`)
@@ -1497,8 +1495,8 @@ class McpServerImpl {
             type: entity.type || 'unknown',
             supported: entity.supported !== false,
             power_source: entity.powerSource || 'unknown',
-            available: entity.available !== false,
-            link_quality: entity.linkquality || null,
+            available: entity.type !== 'Unknown',
+            link_quality: null,
             last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
             state: this.state.get(entity) || {},
             exposes: entity.definition?.exposes || []
@@ -1523,10 +1521,10 @@ class McpServerImpl {
      */
     this.server.resource(
       'z2m://devices/{id}/state',
-      { uri: { type: 'string' } },
-      async (uri) => {
+      new ResourceTemplate('z2m://devices/{id}/state', { list: undefined }),
+      async (uri, params) => {
         try {
-          const id = uri.split('/')[2]
+          const id = params.id
           const entity = this.zigbee.resolveEntity(id)
           if (!entity) {
             throw new Error(`Device not found: ${id}`)
@@ -1553,7 +1551,7 @@ class McpServerImpl {
      */
     this.server.resource(
       'z2m://groups',
-      { uri: { type: 'string' } },
+      'z2m://groups',
       async () => {
         try {
           const groups = []
@@ -1584,10 +1582,10 @@ class McpServerImpl {
      */
     this.server.resource(
       'z2m://groups/{id}',
-      { uri: { type: 'string' } },
-      async (uri) => {
+      new ResourceTemplate('z2m://groups/{id}', { list: undefined }),
+      async (uri, params) => {
         try {
-          const id = uri.split('/').pop()
+          const id = params.id
           const groupId = isNaN(id) ? id : parseInt(id, 10)
           let group = null
 
@@ -1632,7 +1630,7 @@ class McpServerImpl {
      */
     this.server.resource(
       'z2m://bridge/info',
-      { uri: { type: 'string' } },
+      'z2m://bridge/info',
       async () => {
         try {
           const bridgeInfo = {
@@ -1669,7 +1667,7 @@ class McpServerImpl {
      */
     this.server.resource(
       'z2m://network/map',
-      { uri: { type: 'string' } },
+      'z2m://network/map',
       async () => {
         try {
           const devices = []
