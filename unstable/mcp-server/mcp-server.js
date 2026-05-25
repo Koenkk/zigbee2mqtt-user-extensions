@@ -32037,6 +32037,42 @@ var require_mcp_server_impl = __commonJS({
   "src/mcp-server-impl.js"(exports2, module2) {
     var { McpServer } = require_mcp();
     var { z } = require_zod();
+    var ErrorHandler = {
+      NOT_FOUND: (type, value) => ({
+        content: [{ type: "text", text: `${type} not found: "${value}"` }],
+        isError: true
+      }),
+      INVALID_PARAM: (param, reason) => ({
+        content: [{ type: "text", text: `Invalid parameter "${param}": ${reason}` }],
+        isError: true
+      }),
+      MISSING_PARAM: (param) => ({
+        content: [{ type: "text", text: `Missing required parameter: "${param}"` }],
+        isError: true
+      }),
+      PERMISSION_DENIED: (reason) => ({
+        content: [{ type: "text", text: `Permission denied: ${reason}` }],
+        isError: true
+      }),
+      UNAVAILABLE: (resource, reason) => ({
+        content: [{ type: "text", text: `${resource} unavailable: ${reason}` }],
+        isError: true
+      }),
+      OPERATION_FAILED: (operation, reason) => ({
+        content: [{ type: "text", text: `${operation} failed: ${reason}` }],
+        isError: true
+      }),
+      INTERNAL_ERROR: (error) => ({
+        content: [{ type: "text", text: `Internal error: ${error.message || String(error)}` }],
+        isError: true
+      }),
+      SUCCESS: (message, data = null) => ({
+        content: [{
+          type: "text",
+          text: JSON.stringify(data ? { status: "ok", message, data } : { status: "ok", message }, null, 2)
+        }]
+      })
+    };
     var McpServerImpl2 = class {
       constructor(zigbee, mqtt, state, publishEntityState, eventBus, settings, logger) {
         this.zigbee = zigbee;
@@ -32053,6 +32089,61 @@ var require_mcp_server_impl = __commonJS({
         this._registerTools();
         this._registerResources();
       }
+      /**
+       * Safely resolve a device entity with detailed error handling
+       */
+      _resolveDevice(deviceId) {
+        if (!deviceId || typeof deviceId !== "string" || deviceId.trim() === "") {
+          return { error: ErrorHandler.INVALID_PARAM("device", "must be a non-empty string") };
+        }
+        try {
+          const entity = this.zigbee.resolveEntity(deviceId.trim());
+          if (!entity) {
+            return { error: ErrorHandler.NOT_FOUND("Device", deviceId) };
+          }
+          return { entity };
+        } catch (err) {
+          this.logger.error(`Device resolution error for "${deviceId}": ${err.message}`);
+          return { error: ErrorHandler.INTERNAL_ERROR(err) };
+        }
+      }
+      /**
+       * Safely get device state with graceful property handling
+       */
+      _getDeviceState(device) {
+        try {
+          const state = this.state.get(device);
+          return state || {};
+        } catch (err) {
+          this.logger.warn(`Failed to get state for device ${device.name || device}: ${err.message}`);
+          return {};
+        }
+      }
+      /**
+       * Check if z2m bridge is connected
+       */
+      _isBridgeConnected() {
+        try {
+          return this.zigbee && this.zigbee.connected !== false;
+        } catch {
+          return false;
+        }
+      }
+      /**
+       * Safely publish MQTT message with error handling
+       */
+      _publishMqtt(topic, payload, logger = this.logger) {
+        try {
+          if (!this._isBridgeConnected()) {
+            return { error: ErrorHandler.UNAVAILABLE("Bridge", "MQTT connection not available") };
+          }
+          this.mqtt.publish(topic, JSON.stringify(payload));
+          return { success: true };
+        } catch (err) {
+          logger.error(`MQTT publish error on ${topic}: ${err.message}`);
+          return { error: ErrorHandler.UNAVAILABLE("Bridge", `MQTT error: ${err.message}`) };
+        }
+      }
       _registerTools() {
         this.server.tool(
           "list_devices",
@@ -32062,10 +32153,13 @@ var require_mcp_server_impl = __commonJS({
           async ({ include_state = true }) => {
             try {
               const devices = [];
+              if (!this._isBridgeConnected()) {
+                return ErrorHandler.UNAVAILABLE("Bridge", "Zigbee2MQTT not connected");
+              }
               for (const device of this.zigbee.devicesIterator()) {
                 const deviceData = {
-                  friendly_name: device.name,
-                  ieee_address: device.ieeeAddr,
+                  friendly_name: device.name || "unknown",
+                  ieee_address: device.ieeeAddr || "unknown",
                   model: device.model || "unknown",
                   manufacturer: device.manufacturerName || "unknown",
                   type: device.type || "unknown",
@@ -32075,8 +32169,7 @@ var require_mcp_server_impl = __commonJS({
                   link_quality: device.linkquality || null
                 };
                 if (include_state) {
-                  const deviceState = this.state.get(device);
-                  deviceData.state = deviceState || {};
+                  deviceData.state = this._getDeviceState(device);
                 }
                 devices.push(deviceData);
               }
@@ -32084,16 +32177,13 @@ var require_mcp_server_impl = __commonJS({
                 content: [
                   {
                     type: "text",
-                    text: JSON.stringify(devices, null, 2)
+                    text: JSON.stringify({ count: devices.length, devices }, null, 2)
                   }
                 ]
               };
             } catch (error) {
               this.logger.error(`[MCP] list_devices error: ${error.message}`);
-              return {
-                content: [{ type: "text", text: `Error: ${error.message}` }],
-                isError: true
-              };
+              return ErrorHandler.INTERNAL_ERROR(error);
             }
           }
         );
@@ -32105,16 +32195,12 @@ var require_mcp_server_impl = __commonJS({
           },
           async ({ device, include_exposes = true }) => {
             try {
-              const entity = this.zigbee.resolveEntity(device);
-              if (!entity) {
-                return {
-                  content: [{ type: "text", text: `Device not found: ${device}` }],
-                  isError: true
-                };
-              }
+              const resolved = this._resolveDevice(device);
+              if (resolved.error) return resolved.error;
+              const entity = resolved.entity;
               const deviceData = {
-                friendly_name: entity.name,
-                ieee_address: entity.ieeeAddr,
+                friendly_name: entity.name || "unknown",
+                ieee_address: entity.ieeeAddr || "unknown",
                 model: entity.model || "unknown",
                 manufacturer: entity.manufacturerName || "unknown",
                 type: entity.type || "unknown",
@@ -32123,7 +32209,7 @@ var require_mcp_server_impl = __commonJS({
                 available: entity.available !== false,
                 link_quality: entity.linkquality || null,
                 last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
-                state: this.state.get(entity) || {}
+                state: this._getDeviceState(entity)
               };
               if (include_exposes && entity.definition?.exposes) {
                 deviceData.exposes = entity.definition.exposes;
@@ -32138,10 +32224,7 @@ var require_mcp_server_impl = __commonJS({
               };
             } catch (error) {
               this.logger.error(`[MCP] get_device error: ${error.message}`);
-              return {
-                content: [{ type: "text", text: `Error: ${error.message}` }],
-                isError: true
-              };
+              return ErrorHandler.INTERNAL_ERROR(error);
             }
           }
         );

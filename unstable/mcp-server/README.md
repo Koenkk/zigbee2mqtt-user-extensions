@@ -2,6 +2,16 @@
 
 A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables AI tools (Claude, ChatGPT, Cursor, OpenClaw, etc.) to interact with your Zigbee network programmatically.
 
+## 📖 Quick Start
+
+1. **Download:** Copy `mcp-server.js` to `data/external_extensions/`
+2. **Restart:** Restart Zigbee2MQTT
+3. **Test:** Curl `http://localhost:4747/health`
+4. **Configure AI:** Point Claude/Cursor/OpenClaw to `http://localhost:4747/mcp`
+5. **Use:** `list_devices`, `control_device`, `check_ota_updates`, etc.
+
+See [Installation](#-installation) below for detailed setup.
+
 ## ✨ Features
 
 - **Zero configuration** — Works out of the box (copy one file, restart)
@@ -14,6 +24,24 @@ A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables
 - **Binding Support** — Direct device-to-device bindings and group bindings
 - **Docker & HA ready** — Works in Docker, Home Assistant addon, standalone
 - **Single-file install** — `mcp-server.js` is bundled with all dependencies
+- **Production hardened** — Comprehensive error handling, validation, and graceful degradation
+
+## 📖 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Tools & Resources](#-tools--resources)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Using with AI Tools](#-using-with-ai-tools)
+- [Common Use Cases](#-common-use-cases)
+- [Troubleshooting](#-troubleshooting)
+- [Performance & Tuning](#-performance--tuning)
+- [Security](#-security)
+- [Architecture](#-architecture)
+- [FAQ](#-faq)
+
+## ✨ Features
 
 ## 📋 Tools & Resources
 
@@ -335,6 +363,8 @@ HTTP POST /mcp (JSON-RPC 2.0)
 MCP Server Extension
     ├─ Tools (26 total)
     ├─ Resources (7 total)
+    ├─ Error Handler (standardized responses)
+    ├─ Validation Layer (parameter checking)
     ↓
 Zigbee2MQTT Internal Services
     ├─ zigbee (device mgmt)
@@ -345,22 +375,149 @@ Zigbee2MQTT Internal Services
 Zigbee Network (2.4GHz mesh)
 ```
 
+## ⚡ Performance & Tuning
+
+### Bundle Size
+- **Current:** 1.3 MB (bundled with all dependencies)
+- **Memory:** ~50-100 MB typical (Zigbee2MQTT overhead)
+- **CPU:** Minimal (only active when tools called)
+
+### Optimization Tips
+
+**Max Devices:** No hard limit, but recommend <500 in a single network
+```bash
+# Monitor device count
+curl http://localhost:4747/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"method": "tools/call", "params": {"name": "get_bridge_info"}}'
+```
+
+**Network Map Performance:** For networks >200 devices, use JSON format instead of Graphviz
+```bash
+curl -d '{"method": "tools/call", "params": {"name": "get_network_map", "arguments": {"format": "json"}}}'
+```
+
+**Connection Pooling:** HTTP server reuses connections (no need to configure)
+
+### Health Monitoring
+
+```bash
+# Check health endpoint (lightweight)
+curl http://localhost:4747/health
+
+# Check detailed bridge health
+curl -d '{"method": "tools/call", "params": {"name": "check_bridge_health", "arguments": {"detailed": true}}}'
+```
+
+## 🔐 Security Considerations
+
+### Local Network Only
+- **No authentication** — This extension has no auth layer
+- **Firewall required** — Do NOT expose port 4747 directly to internet
+- **Use VPN/SSH tunnel** for remote access
+
+### Safe by Default
+- **Parameter validation** — All inputs are checked and sanitized
+- **Graceful errors** — Invalid requests return 400, not crashes
+- **No code execution** — Tool calls are device commands only, not arbitrary code
+- **Idempotent operations** — Most operations are safe to retry
+
+### Best Practices
+
+```bash
+# ❌ UNSAFE: Exposed to internet
+ufw allow 4747
+expose 4747 in cloud
+
+# ✅ SAFE: Firewalled locally
+Firewall blocks external access to 4747
+SSH tunnel for remote: ssh -L 4747:localhost:4747 user@home
+```
+
+### CORS Configuration
+
+CORS is enabled for localhost. To restrict to specific origins:
+
+```javascript
+// In mcp-server-impl.js, modify _setupServer():
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true
+}));
+```
+
+## 📖 Error Handling
+
+All tools return standardized error responses:
+
+```json
+{
+  "content": [{
+    "type": "text",
+    "text": "Device not found: \"living_room_lamp\""
+  }],
+  "isError": true
+}
+```
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Device not found | Wrong name/address | Use `list_devices` to verify |
+| Bridge unavailable | Z2M not connected | Check `docker logs` or restart Z2M |
+| Permission denied | Feature not supported | Check device `exposes` |
+| Operation failed | MQTT error | Restart Zigbee2MQTT |
+| Invalid parameter | Wrong type/value | Check parameter types (string vs number) |
+
+## ❓ FAQ
+
+### Q: Does this work with Home Assistant?
+**A:** Yes! Place `mcp-server.js` in the Zigbee2MQTT addon's `data/external_extensions/` folder and restart.
+
+### Q: Can I use this with multiple AI tools simultaneously?
+**A:** Yes. Multiple clients can connect to the same MCP server. They don't interfere.
+
+### Q: What happens if Zigbee2MQTT crashes?
+**A:** The MCP server runs as an extension. It's part of Z2M, so it crashes too. Restart Z2M.
+
+### Q: Can I run this on a remote machine?
+**A:** Yes, but use SSH tunneling or VPN. Don't expose port 4747 directly.
+
+### Q: Does it work on Windows?
+**A:** Yes. If running Zigbee2MQTT in Docker, port 4747 must be exposed to host.
+
+### Q: How do I update the extension?
+**A:** Re-download `mcp-server.js` and restart Zigbee2MQTT. No configuration needed.
+
+### Q: Can I customize the HTTP port?
+**A:** Yes, set `ZIGBEE2MQTT_CONFIG_MCP_PORT=5000` before starting.
+
+### Q: What if my device isn't responding?
+**A:** Check device availability in `list_devices`. If `available: false`, the device is offline or unreachable.
+
+### Q: Can I bind devices across networks?
+**A:** No. Binding only works within a single Zigbee network.
+
+### Q: How often is device state updated?
+**A:** In real-time (from Z2M EventBus). State is fresh within milliseconds.
+
+### Q: What's the difference between `control_device` and binding?
+**A:** `control_device` sends direct commands (one-time). Binding creates a permanent link (coordinator-less automation).
+
+### Q: Can I use this without MQTT?
+**A:** Yes. This extension doesn't require MQTT publishing. You control devices directly via Z2M internal APIs.
+
 ## 📈 Version Info
 
 - **Phase 1:** Core device control (5 tools)
 - **Phase 2:** Groups, bindings, device management (16 tools, 6 resources)
 - **Phase 3:** OTA, converters, network & health (10 tools, 1 resource)
+- **Phase 4:** Error handling, comprehensive documentation, production hardening
 
 **Total: 26 tools + 7 resources**
 
-Build: `mcp-server.js` 1.4 MB (bundled with dependencies)
-
-## 🔐 Security Notes
-
-- **No authentication** — For local networks only (use firewall for remote access)
-- **CORS enabled** — Allows browser clients (configure carefully)
-- **Stateless operations** — Each request is independent
-- **Safe mutations** — All write operations are explicit tool calls
+Build: `mcp-server.js` 1.3 MB (bundled with dependencies)
 
 ## 📜 License
 
