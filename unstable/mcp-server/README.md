@@ -11,7 +11,9 @@ A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables
 - **Docker & HA ready** — Works in Docker, Home Assistant addon, standalone
 - **Single-file install** — `mcp-server.js` is bundled with all dependencies
 
-## 📋 Phase 1 Tools
+## 📋 Tools & Resources
+
+### Phase 1 Tools (Core)
 
 | Tool | Purpose | Parameters |
 |------|---------|------------|
@@ -20,6 +22,47 @@ A **Model Context Protocol (MCP)** server extension for Zigbee2MQTT that enables
 | `control_device` | Send commands | `device` (name/address), `payload` (object) |
 | `get_device_state` | Get current state | `device` (name/address) |
 | `get_bridge_info` | Bridge info & stats | None |
+
+### Phase 2 Tools (Groups, Bindings, Device Management)
+
+#### Group Management
+
+| Tool | Purpose | Parameters |
+|------|---------|------------||
+| `list_groups` | List all groups with member counts | None |
+| `create_group` | Create new group | `friendly_name` (string), `group_id` (number, optional) |
+| `delete_group` | Delete group | `group` (name/id), `force` (bool, optional) |
+| `rename_group` | Rename group | `group` (name/id), `new_name` (string) |
+| `add_device_to_group` | Add device to group | `device` (name/address), `group` (name/id) |
+| `remove_device_from_group` | Remove device from group | `device` (name/address), `group` (name/id) |
+
+#### Binding Management
+
+| Tool | Purpose | Parameters |
+|------|---------|------------||
+| `bind_device` | Bind source to target/group | `source` (name/address), `target` (optional), `clusters` (array, optional), `source_endpoint` (num, optional), `target_endpoint` (num, optional) |
+| `unbind_device` | Unbind source from target | `source` (name/address), `target` (name/id), `clusters` (array, optional), `source_endpoint` (num, optional), `target_endpoint` (num, optional) |
+| `clear_binds` | Clear all bindings for device | `device` (name/address) |
+
+#### Device Management
+
+| Tool | Purpose | Parameters |
+|------|---------|------------||
+| `rename_device` | Rename device | `device` (name/address), `new_name` (string), `ha_sync` (bool, optional) |
+| `remove_device` | Remove device from network | `device` (name/address), `block` (bool, optional), `force` (bool, optional) |
+
+### Phase 2 Resources (MCP)
+
+Resources are read-only endpoints for querying data:
+
+| URI | Purpose |
+|-----|----------|
+| `z2m://devices` | List all devices |
+| `z2m://devices/{id}` | Get single device details |
+| `z2m://devices/{id}/state` | Get device state only |
+| `z2m://groups` | List all groups |
+| `z2m://groups/{id}` | Get single group with members |
+| `z2m://bridge/info` | Get bridge configuration & status |
 
 ## 🚀 Installation
 
@@ -151,9 +194,11 @@ mcp_servers:
     endpoint: http://localhost:4747/mcp
 ```
 
-## 📚 Tool Reference
+## 📚 Detailed Tool & Resource Reference
 
-### `list_devices`
+### Phase 1: Core Devices
+
+#### `list_devices`
 
 List all known Zigbee devices with their current state.
 
@@ -196,7 +241,7 @@ List all known Zigbee devices with their current state.
 ]
 ```
 
-### `get_device`
+#### `get_device`
 
 Get detailed information about a specific device.
 
@@ -238,7 +283,7 @@ Get detailed information about a specific device.
 }
 ```
 
-### `control_device`
+#### `control_device`
 
 Send a command to a device.
 
@@ -284,7 +329,7 @@ Send a command to a device.
 }
 ```
 
-### `get_device_state`
+#### `get_device_state`
 
 Get the current state of a device.
 
@@ -314,7 +359,7 @@ Get the current state of a device.
 }
 ```
 
-### `get_bridge_info`
+#### `get_bridge_info`
 
 Get bridge information and network statistics.
 
@@ -348,6 +393,289 @@ Get bridge information and network statistics.
 }
 ```
 
+### Phase 2: Group Management
+
+#### `list_groups`
+
+List all groups with member information.
+
+**Request:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "list_groups",
+    "arguments": {}
+  }
+}
+```
+
+**Response:**
+```json
+[
+  {
+    "id": 1,
+    "friendly_name": "living_room_lights",
+    "members_count": 3,
+    "members": [
+      {
+        "name": "lamp_1",
+        "ieee_address": "0x00158d0002a7b8f1",
+        "type": "Light"
+      }
+    ]
+  }
+]
+```
+
+#### `create_group`
+
+Create a new group.
+
+**Request:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "create_group",
+    "arguments": {
+      "friendly_name": "bedroom_lights",
+      "group_id": 5
+    }
+  }
+}
+```
+
+#### `rename_group`
+
+Rename an existing group.
+
+**Request:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "rename_group",
+    "arguments": {
+      "group": "living_room_lights",
+      "new_name": "living_room_main_lights"
+    }
+  }
+}
+```
+
+#### `add_device_to_group` / `remove_device_from_group`
+
+Add or remove devices from groups.
+
+**Request (add):**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "add_device_to_group",
+    "arguments": {
+      "device": "lamp_2",
+      "group": "living_room_lights"
+    }
+  }
+}
+```
+
+### Phase 2: Binding Management
+
+#### `bind_device`
+
+Bind a source device to a target device or group.
+
+**Request (bind to device):**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "bind_device",
+    "arguments": {
+      "source": "remote_control",
+      "target": "lamp_1",
+      "clusters": ["0x0006", "0x0008"]
+    }
+  }
+}
+```
+
+**Request (bind to group):**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "bind_device",
+    "arguments": {
+      "source": "remote_control",
+      "target": "living_room_lights"
+    }
+  }
+}
+```
+
+#### `clear_binds`
+
+Clear all bindings for a device.
+
+**Request:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "clear_binds",
+    "arguments": {
+      "device": "remote_control"
+    }
+  }
+}
+```
+
+### Phase 2: Device Management
+
+#### `rename_device`
+
+Rename a device with optional Home Assistant sync.
+
+**Request:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "rename_device",
+    "arguments": {
+      "device": "lamp_1",
+      "new_name": "living_room_main_lamp",
+      "ha_sync": true
+    }
+  }
+}
+```
+
+#### `remove_device`
+
+Remove a device from the network.
+
+**Request:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "remove_device",
+    "arguments": {
+      "device": "lamp_broken",
+      "block": true,
+      "force": false
+    }
+  }
+}
+```
+
+### Phase 2: MCP Resources
+
+Resources are read-only data endpoints accessed via the MCP `resources/read` method.
+
+#### `z2m://devices`
+
+List all devices.
+
+**Request:**
+```json
+{
+  "method": "resources/read",
+  "params": {
+    "uri": "z2m://devices"
+  }
+}
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "0x00158d0002a7b8f1",
+    "name": "living_room_lamp",
+    "model": "LCT015",
+    "manufacturer": "Philips",
+    "available": true,
+    "link_quality": 155
+  }
+]
+```
+
+#### `z2m://devices/{id}`
+
+Get detailed information for a single device.
+
+**Request:**
+```json
+{
+  "method": "resources/read",
+  "params": {
+    "uri": "z2m://devices/living_room_lamp"
+  }
+}
+```
+
+#### `z2m://devices/{id}/state`
+
+Get only the state for a device.
+
+**Request:**
+```json
+{
+  "method": "resources/read",
+  "params": {
+    "uri": "z2m://devices/living_room_lamp/state"
+  }
+}
+```
+
+#### `z2m://groups`
+
+List all groups.
+
+**Request:**
+```json
+{
+  "method": "resources/read",
+  "params": {
+    "uri": "z2m://groups"
+  }
+}
+```
+
+#### `z2m://groups/{id}`
+
+Get a group with its members.
+
+**Request:**
+```json
+{
+  "method": "resources/read",
+  "params": {
+    "uri": "z2m://groups/living_room_lights"
+  }
+}
+```
+
+#### `z2m://bridge/info`
+
+Get bridge configuration and status.
+
+**Request:**
+```json
+{
+  "method": "resources/read",
+  "params": {
+    "uri": "z2m://bridge/info"
+  }
+}
+```
+
 ## 🔍 Health Check
 
 The HTTP server provides a health check endpoint:
@@ -362,6 +690,68 @@ Response:
   "status": "ok",
   "timestamp": "2026-05-25T07:23:00.000Z"
 }
+```
+
+## 🚀 Usage Examples
+
+### With Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "zigbee2mqtt": {
+      "command": "curl",
+      "args": ["http://localhost:4747/mcp"],
+      "type": "http"
+    }
+  }
+}
+```
+
+### Reading Resources with MCP Client
+
+```javascript
+const client = new McpClient();
+
+// Get all devices
+const devices = await client.resources.read({ uri: 'z2m://devices' });
+
+// Get single device state
+const lampState = await client.resources.read({ uri: 'z2m://devices/living_room_lamp/state' });
+
+// Get group with members
+const groupMembers = await client.resources.read({ uri: 'z2m://groups/living_room_lights' });
+```
+
+### Real-World Example: Smart Home Automation
+
+**Scenario:** "Turn on all lights in the living room and bind a remote control to them"
+
+```python
+# 1. Create a group (if it doesn't exist)
+mcp.call_tool('create_group', {
+    'friendly_name': 'living_room_all_lights'
+})
+
+# 2. Add lights to group
+for light in ['lamp_1', 'lamp_2', 'ceiling_light']:
+    mcp.call_tool('add_device_to_group', {
+        'device': light,
+        'group': 'living_room_all_lights'
+    })
+
+# 3. Bind remote to group
+mcp.call_tool('bind_device', {
+    'source': 'living_room_remote',
+    'target': 'living_room_all_lights',
+    'clusters': ['0x0006', '0x0008']  # on/off, brightness
+})
+
+# 4. Control the group
+mcp.call_tool('control_device', {
+    'device': 'living_room_all_lights',
+    'payload': {'state': 'ON', 'brightness': 200}
+})
 ```
 
 ## 🐛 Troubleshooting
