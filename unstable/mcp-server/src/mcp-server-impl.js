@@ -33,8 +33,8 @@
  *  - z2m://network/map
  */
 
-const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
-const { z } = require('zod');
+const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js')
+const { z } = require('zod')
 
 /**
  * Error handler utilities for standardized error responses
@@ -74,7 +74,7 @@ const ErrorHandler = {
       text: JSON.stringify(data ? { status: 'ok', message, data } : { status: 'ok', message }, null, 2)
     }]
   })
-};
+}
 
 /**
  * Safe async handler wrapper for tools
@@ -82,33 +82,33 @@ const ErrorHandler = {
 function wrapToolHandler(handler, logger, toolName) {
   return async (...args) => {
     try {
-      return await handler(...args);
+      return await handler(...args)
     } catch (error) {
-      logger.error(`[MCP Tool ${toolName}] ${error.message}`);
-      return ErrorHandler.INTERNAL_ERROR(error);
+      logger.error(`[MCP Tool ${toolName}] ${error.message}`)
+      return ErrorHandler.INTERNAL_ERROR(error)
     }
-  };
+  }
 }
 
 class McpServerImpl {
   constructor(zigbee, mqtt, state, publishEntityState, eventBus, settings, logger) {
-    this.zigbee = zigbee;
-    this.mqtt = mqtt;
-    this.state = state;
-    this.publishEntityState = publishEntityState;
-    this.eventBus = eventBus;
-    this.settings = settings;
-    this.logger = logger;
+    this.zigbee = zigbee
+    this.mqtt = mqtt
+    this.state = state
+    this.publishEntityState = publishEntityState
+    this.eventBus = eventBus
+    this.settings = settings
+    this.logger = logger
 
     // Create MCP server
     this.server = new McpServer({
       name: 'zigbee2mqtt-mcp',
       version: '2.0.0'
-    });
+    })
 
     // Register tools and resources
-    this._registerTools();
-    this._registerResources();
+    this._registerTools()
+    this._registerResources()
   }
 
   /**
@@ -116,18 +116,18 @@ class McpServerImpl {
    */
   _resolveDevice(deviceId) {
     if (!deviceId || typeof deviceId !== 'string' || deviceId.trim() === '') {
-      return { error: ErrorHandler.INVALID_PARAM('device', 'must be a non-empty string') };
+      return { error: ErrorHandler.INVALID_PARAM('device', 'must be a non-empty string') }
     }
 
     try {
-      const entity = this.zigbee.resolveEntity(deviceId.trim());
+      const entity = this.zigbee.resolveEntity(deviceId.trim())
       if (!entity) {
-        return { error: ErrorHandler.NOT_FOUND('Device', deviceId) };
+        return { error: ErrorHandler.NOT_FOUND('Device', deviceId) }
       }
-      return { entity };
+      return { entity }
     } catch (err) {
-      this.logger.error(`Device resolution error for "${deviceId}": ${err.message}`);
-      return { error: ErrorHandler.INTERNAL_ERROR(err) };
+      this.logger.error(`Device resolution error for "${deviceId}": ${err.message}`)
+      return { error: ErrorHandler.INTERNAL_ERROR(err) }
     }
   }
 
@@ -136,11 +136,11 @@ class McpServerImpl {
    */
   _getDeviceState(device) {
     try {
-      const state = this.state.get(device);
-      return state || {};
+      const state = this.state.get(device)
+      return state || {}
     } catch (err) {
-      this.logger.warn(`Failed to get state for device ${device.name || device}: ${err.message}`);
-      return {};
+      this.logger.warn(`Failed to get state for device ${device.name || device}: ${err.message}`)
+      return {}
     }
   }
 
@@ -149,9 +149,9 @@ class McpServerImpl {
    */
   _isBridgeConnected() {
     try {
-      return this.zigbee && this.zigbee.connected !== false;
+      return this.zigbee && this.zigbee.connected !== false
     } catch {
-      return false;
+      return false
     }
   }
 
@@ -161,13 +161,13 @@ class McpServerImpl {
   _publishMqtt(topic, payload, logger = this.logger) {
     try {
       if (!this._isBridgeConnected()) {
-        return { error: ErrorHandler.UNAVAILABLE('Bridge', 'MQTT connection not available') };
+        return { error: ErrorHandler.UNAVAILABLE('Bridge', 'MQTT connection not available') }
       }
-      this.mqtt.publish(topic, JSON.stringify(payload));
-      return { success: true };
+      this.mqtt.publish(topic, JSON.stringify(payload))
+      return { success: true }
     } catch (err) {
-      logger.error(`MQTT publish error on ${topic}: ${err.message}`);
-      return { error: ErrorHandler.UNAVAILABLE('Bridge', `MQTT error: ${err.message}`) };
+      logger.error(`MQTT publish error on ${topic}: ${err.message}`)
+      return { error: ErrorHandler.UNAVAILABLE('Bridge', `MQTT error: ${err.message}`) }
     }
   }
 
@@ -182,10 +182,10 @@ class McpServerImpl {
       },
       async ({ include_state = true }) => {
         try {
-          const devices = [];
+          const devices = []
           
           if (!this._isBridgeConnected()) {
-            return ErrorHandler.UNAVAILABLE('Bridge', 'Zigbee2MQTT not connected');
+            return ErrorHandler.UNAVAILABLE('Bridge', 'Zigbee2MQTT not connected')
           }
 
           for (const device of this.zigbee.devicesIterator()) {
@@ -197,15 +197,15 @@ class McpServerImpl {
               type: device.type || 'unknown',
               supported: device.supported !== false,
               power_source: device.powerSource || 'unknown',
-              available: device.available !== false,
-              link_quality: device.linkquality || null
-            };
-
-            if (include_state) {
-              deviceData.state = this._getDeviceState(device);
+              available: device.type !== 'Unknown',
+              link_quality: null
             }
 
-            devices.push(deviceData);
+            if (include_state) {
+              deviceData.state = this._getDeviceState(device)
+            }
+
+            devices.push(deviceData)
           }
 
           return {
@@ -215,13 +215,13 @@ class McpServerImpl {
                 text: JSON.stringify({ count: devices.length, devices }, null, 2)
               }
             ]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] list_devices error: ${error.message}`);
-          return ErrorHandler.INTERNAL_ERROR(error);
+          this.logger.error(`[MCP] list_devices error: ${error.message}`)
+          return ErrorHandler.INTERNAL_ERROR(error)
         }
       }
-    );
+    )
 
     /**
      * get_device — Get detailed information about a specific device
@@ -234,10 +234,10 @@ class McpServerImpl {
       },
       async ({ device, include_exposes = true }) => {
         try {
-          const resolved = this._resolveDevice(device);
-          if (resolved.error) return resolved.error;
+          const resolved = this._resolveDevice(device)
+          if (resolved.error) return resolved.error
 
-          const entity = resolved.entity;
+          const entity = resolved.entity
           const deviceData = {
             friendly_name: entity.name || 'unknown',
             ieee_address: entity.ieeeAddr || 'unknown',
@@ -250,10 +250,10 @@ class McpServerImpl {
             link_quality: entity.linkquality || null,
             last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
             state: this._getDeviceState(entity)
-          };
+          }
 
           if (include_exposes && entity.definition?.exposes) {
-            deviceData.exposes = entity.definition.exposes;
+            deviceData.exposes = entity.definition.exposes
           }
 
           return {
@@ -263,13 +263,13 @@ class McpServerImpl {
                 text: JSON.stringify(deviceData, null, 2)
               }
             ]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] get_device error: ${error.message}`);
-          return ErrorHandler.INTERNAL_ERROR(error);
+          this.logger.error(`[MCP] get_device error: ${error.message}`)
+          return ErrorHandler.INTERNAL_ERROR(error)
         }
       }
-    );
+    )
 
     /**
      * control_device — Send command to device (set state, brightness, color, etc.)
@@ -282,18 +282,18 @@ class McpServerImpl {
       },
       async ({ device, payload }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
-          const topic = `${baseTopic}/${entity.name}/set`;
+          const baseTopic = this.settings.get().mqtt.base_topic
+          const topic = `${baseTopic}/${entity.name}/set`
 
-          this.mqtt.publish(topic, JSON.stringify(payload));
+          this.mqtt.publish(topic, JSON.stringify(payload))
 
           return {
             content: [
@@ -307,16 +307,16 @@ class McpServerImpl {
                 }, null, 2)
               }
             ]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] control_device error: ${error.message}`);
+          this.logger.error(`[MCP] control_device error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * get_device_state — Get current device state
@@ -328,15 +328,15 @@ class McpServerImpl {
       },
       async ({ device }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const deviceState = this.state.get(entity) || {};
+          const deviceState = this.state.get(entity) || {}
 
           return {
             content: [
@@ -345,16 +345,16 @@ class McpServerImpl {
                 text: JSON.stringify(deviceState, null, 2)
               }
             ]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] get_device_state error: ${error.message}`);
+          this.logger.error(`[MCP] get_device_state error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * get_bridge_info — Get bridge information and status
@@ -378,7 +378,7 @@ class McpServerImpl {
               channel: this.zigbee.controller?.meta?.channel || 'unknown'
             },
             timestamp: new Date().toISOString()
-          };
+          }
 
           return {
             content: [
@@ -387,16 +387,16 @@ class McpServerImpl {
                 text: JSON.stringify(bridgeInfo, null, 2)
               }
             ]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] get_bridge_info error: ${error.message}`);
+          this.logger.error(`[MCP] get_bridge_info error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     // ========== PHASE 2: GROUP MANAGEMENT TOOLS ==========
 
@@ -408,7 +408,7 @@ class McpServerImpl {
       {},
       async () => {
         try {
-          const groups = [];
+          const groups = []
           for (const group of this.zigbee.groupsIterator()) {
             groups.push({
               id: group.groupID,
@@ -419,21 +419,21 @@ class McpServerImpl {
                 ieee_address: m.ieeeAddr,
                 type: m.type
               }))
-            });
+            })
           }
 
           return {
             content: [{ type: 'text', text: JSON.stringify(groups, null, 2) }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] list_groups error: ${error.message}`);
+          this.logger.error(`[MCP] list_groups error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * create_group — Create new group
@@ -446,13 +446,13 @@ class McpServerImpl {
       },
       async ({ friendly_name, group_id }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             friendly_name,
             ...(group_id && { group_id })
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/group/add`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/group/add`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -462,16 +462,16 @@ class McpServerImpl {
                 message: `Group creation request sent for: ${friendly_name}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] create_group error: ${error.message}`);
+          this.logger.error(`[MCP] create_group error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * delete_group — Delete group
@@ -484,13 +484,13 @@ class McpServerImpl {
       },
       async ({ group, force = false }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             id: group,
             force
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/group/remove`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/group/remove`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -500,16 +500,16 @@ class McpServerImpl {
                 message: `Group deletion request sent for: ${group}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] delete_group error: ${error.message}`);
+          this.logger.error(`[MCP] delete_group error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * rename_group — Rename group
@@ -522,13 +522,13 @@ class McpServerImpl {
       },
       async ({ group, new_name }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             id: group,
             friendly_name: new_name
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/group/options`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/group/options`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -538,16 +538,16 @@ class McpServerImpl {
                 message: `Group rename request sent: ${group} → ${new_name}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] rename_group error: ${error.message}`);
+          this.logger.error(`[MCP] rename_group error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * add_device_to_group — Add device to group
@@ -560,22 +560,22 @@ class McpServerImpl {
       },
       async ({ device, group }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             device: entity.name,
             group,
             action: 'add'
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/group/members/add`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/group/members/add`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -585,16 +585,16 @@ class McpServerImpl {
                 message: `Add device request sent: ${entity.name} → ${group}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] add_device_to_group error: ${error.message}`);
+          this.logger.error(`[MCP] add_device_to_group error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * remove_device_from_group — Remove device from group
@@ -607,22 +607,22 @@ class McpServerImpl {
       },
       async ({ device, group }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             device: entity.name,
             group,
             action: 'remove'
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/group/members/remove`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/group/members/remove`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -632,16 +632,16 @@ class McpServerImpl {
                 message: `Remove device request sent: ${entity.name} ← ${group}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] remove_device_from_group error: ${error.message}`);
+          this.logger.error(`[MCP] remove_device_from_group error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     // ========== PHASE 2: BINDING TOOLS ==========
 
@@ -659,24 +659,24 @@ class McpServerImpl {
       },
       async ({ source, target, clusters, source_endpoint, target_endpoint }) => {
         try {
-          const sourceEntity = this.zigbee.resolveEntity(source);
+          const sourceEntity = this.zigbee.resolveEntity(source)
           if (!sourceEntity) {
             return {
               content: [{ type: 'text', text: `Source device not found: ${source}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             source: sourceEntity.name,
             ...(target && { target }),
             ...(clusters && { clusters }),
             ...(source_endpoint !== undefined && { source_endpoint }),
             ...(target_endpoint !== undefined && { target_endpoint })
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/bind`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/bind`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -687,16 +687,16 @@ class McpServerImpl {
                 payload
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] bind_device error: ${error.message}`);
+          this.logger.error(`[MCP] bind_device error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * unbind_device — Unbind source device from target
@@ -712,24 +712,24 @@ class McpServerImpl {
       },
       async ({ source, target, clusters, source_endpoint, target_endpoint }) => {
         try {
-          const sourceEntity = this.zigbee.resolveEntity(source);
+          const sourceEntity = this.zigbee.resolveEntity(source)
           if (!sourceEntity) {
             return {
               content: [{ type: 'text', text: `Source device not found: ${source}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             source: sourceEntity.name,
             target,
             ...(clusters && { clusters }),
             ...(source_endpoint !== undefined && { source_endpoint }),
             ...(target_endpoint !== undefined && { target_endpoint })
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/unbind`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/unbind`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -740,16 +740,16 @@ class McpServerImpl {
                 payload
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] unbind_device error: ${error.message}`);
+          this.logger.error(`[MCP] unbind_device error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * clear_binds — Clear all bindings for a device
@@ -761,20 +761,20 @@ class McpServerImpl {
       },
       async ({ device }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             device: entity.name
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/unbind_all`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/unbind_all`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -784,16 +784,16 @@ class McpServerImpl {
                 message: `Clear bindings request sent for: ${entity.name}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] clear_binds error: ${error.message}`);
+          this.logger.error(`[MCP] clear_binds error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     // ========== PHASE 2: DEVICE MANAGEMENT TOOLS ==========
 
@@ -809,22 +809,22 @@ class McpServerImpl {
       },
       async ({ device, new_name, ha_sync = true }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             device: entity.name,
             new_name,
             ha_sync
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/rename`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/rename`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -834,16 +834,16 @@ class McpServerImpl {
                 message: `Rename request sent: ${entity.name} → ${new_name}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] rename_device error: ${error.message}`);
+          this.logger.error(`[MCP] rename_device error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * remove_device — Remove device from network
@@ -857,22 +857,22 @@ class McpServerImpl {
       },
       async ({ device, block = true, force = false }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             id: entity.name,
             block,
             force
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/remove`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/remove`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -884,16 +884,16 @@ class McpServerImpl {
                 force
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] remove_device error: ${error.message}`);
+          this.logger.error(`[MCP] remove_device error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     // ========== PHASE 3: OTA UPDATE TOOLS ==========
 
@@ -907,20 +907,20 @@ class McpServerImpl {
       },
       async ({ device }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             device: entity.name
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/ota_update/check`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/ota_update/check`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -932,16 +932,16 @@ class McpServerImpl {
                 ieee_address: entity.ieeeAddr
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] check_ota_updates error: ${error.message}`);
+          this.logger.error(`[MCP] check_ota_updates error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * update_device_ota — Trigger OTA update for a device
@@ -954,21 +954,21 @@ class McpServerImpl {
       },
       async ({ device, force = false }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             device: entity.name,
             force
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/ota_update/update`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/ota_update/update`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -980,16 +980,16 @@ class McpServerImpl {
                 force
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] update_device_ota error: ${error.message}`);
+          this.logger.error(`[MCP] update_device_ota error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     // ========== PHASE 3: CONVERTER TOOLS ==========
 
@@ -1001,13 +1001,13 @@ class McpServerImpl {
       {},
       async () => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
-          const converters = [];
+          const baseTopic = this.settings.get().mqtt.base_topic
+          const converters = []
 
           // Get converters from Zigbee2MQTT state
           // Note: Actual converter list comes from z2m's converter registry
           // This is a placeholder that queries via MQTT bridge request
-          const converterList = this.zigbee.deviceDefinitions || [];
+          const converterList = this.zigbee.deviceDefinitions || []
 
           for (const converter of converterList) {
             converters.push({
@@ -1015,7 +1015,7 @@ class McpServerImpl {
               model: converter.model || 'unknown',
               manufacturer: converter.manufacturerName || 'unknown',
               type: 'built-in'
-            });
+            })
           }
 
           return {
@@ -1027,16 +1027,16 @@ class McpServerImpl {
                 total_count: converters.length
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] list_converters error: ${error.message}`);
+          this.logger.error(`[MCP] list_converters error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * generate_external_definition — Generate device definition for external converter
@@ -1049,12 +1049,12 @@ class McpServerImpl {
       },
       async ({ device, output_format = 'json' }) => {
         try {
-          const entity = this.zigbee.resolveEntity(device);
+          const entity = this.zigbee.resolveEntity(device)
           if (!entity) {
             return {
               content: [{ type: 'text', text: `Device not found: ${device}` }],
               isError: true
-            };
+            }
           }
 
           // Generate definition from device metadata
@@ -1075,14 +1075,14 @@ class McpServerImpl {
               disableDefaultResponse: true
             },
             ota: null
-          };
+          }
 
-          let output = '';
+          let output = ''
           if (output_format === 'yaml') {
             // Simple YAML conversion
-            output = `zigbeeModel:\n  - ${definition.zigbeeModel[0]}\nmodel: ${definition.model}\nvendor: ${definition.vendor}\ndescription: ${definition.description}\ndevices:\n  - ieeeAddr: ${definition.devices[0].ieeeAddr}\nfromZigbee: []\ntoZigbee: []\nmeta:\n  disableDefaultResponse: true\n`;
+            output = `zigbeeModel:\n  - ${definition.zigbeeModel[0]}\nmodel: ${definition.model}\nvendor: ${definition.vendor}\ndescription: ${definition.description}\ndevices:\n  - ieeeAddr: ${definition.devices[0].ieeeAddr}\nfromZigbee: []\ntoZigbee: []\nmeta:\n  disableDefaultResponse: true\n`
           } else {
-            output = JSON.stringify(definition, null, 2);
+            output = JSON.stringify(definition, null, 2)
           }
 
           return {
@@ -1090,16 +1090,16 @@ class McpServerImpl {
               type: 'text',
               text: output
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] generate_external_definition error: ${error.message}`);
+          this.logger.error(`[MCP] generate_external_definition error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * save_converter — Save custom converter definition
@@ -1112,13 +1112,13 @@ class McpServerImpl {
       },
       async ({ name, definition_json }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             converter_name: name,
             definition: definition_json
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/add_external_converter`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/add_external_converter`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -1128,16 +1128,16 @@ class McpServerImpl {
                 message: `Save converter request sent: ${name}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] save_converter error: ${error.message}`);
+          this.logger.error(`[MCP] save_converter error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * remove_converter — Remove custom converter
@@ -1149,12 +1149,12 @@ class McpServerImpl {
       },
       async ({ name }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             converter_name: name
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/device/remove_external_converter`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/device/remove_external_converter`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -1164,16 +1164,16 @@ class McpServerImpl {
                 message: `Remove converter request sent: ${name}`
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] remove_converter error: ${error.message}`);
+          this.logger.error(`[MCP] remove_converter error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     // ========== PHASE 3: NETWORK & HEALTH TOOLS ==========
 
@@ -1187,17 +1187,17 @@ class McpServerImpl {
       },
       async ({ format = 'json' }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
 
           // Request network map from Z2M
           this.mqtt.publish(`${baseTopic}/bridge/request/networkmap/routes`, JSON.stringify({
             format
-          }));
+          }))
 
           // Build local map from device data
-          const devices = [];
-          const links = [];
-          const coordinator = this.zigbee.controller;
+          const devices = []
+          const links = []
+          const coordinator = this.zigbee.controller
 
           for (const device of this.zigbee.devicesIterator()) {
             devices.push({
@@ -1205,38 +1205,38 @@ class McpServerImpl {
               name: device.name,
               type: device.type,
               model: device.model,
-              available: device.available !== false,
-              link_quality: device.linkquality || 0,
+              available: device.type !== 'Unknown',
+              link_quality: 0,
               parent: device.parent ? {
                 id: device.parent.ieeeAddr,
                 name: device.parent.name
               } : null
-            });
+            })
 
             // Create link from device to parent
             if (device.parent) {
               links.push({
                 source: device.parent.ieeeAddr,
                 target: device.ieeeAddr,
-                quality: device.linkquality || 0
-              });
+                quality: 0
+              })
             }
           }
 
-          let output = '';
+          let output = ''
           if (format === 'graphviz') {
             // Generate simple graphviz DOT format
-            output = 'digraph {\n';
-            output += '  rankdir=LR;\n';
-            output += `  coordinator [label="${coordinator?.meta?.product || 'Coordinator'}", shape=box];\n`;
+            output = 'digraph {\n'
+            output += '  rankdir=LR;\n'
+            output += `  coordinator [label="${coordinator?.meta?.product || 'Coordinator'}", shape=box];\n`
             for (const device of devices) {
-              const label = `${device.name}\n(${device.type})`;
-              output += `  "${device.id}" [label="${label}"];\n`;
+              const label = `${device.name}\n(${device.type})`
+              output += `  "${device.id}" [label="${label}"];\n`
             }
             for (const link of links) {
-              output += `  "${link.source}" -> "${link.target}" [label="${link.quality}"];\n`;
+              output += `  "${link.source}" -> "${link.target}" [label="${link.quality}"];\n`
             }
-            output += '}\n';
+            output += '}\n'
           } else {
             output = JSON.stringify({
               devices,
@@ -1245,7 +1245,7 @@ class McpServerImpl {
                 id: coordinator?.ieee_addr || 'unknown',
                 type: coordinator?.meta?.product || 'unknown'
               }
-            }, null, 2);
+            }, null, 2)
           }
 
           return {
@@ -1253,16 +1253,16 @@ class McpServerImpl {
               type: 'text',
               text: output
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] get_network_map error: ${error.message}`);
+          this.logger.error(`[MCP] get_network_map error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * check_bridge_health — Check bridge and network health
@@ -1274,45 +1274,45 @@ class McpServerImpl {
       },
       async ({ detailed = false }) => {
         try {
-          const devices = [];
-          let totalDevices = 0;
-          let availableDevices = 0;
-          let totalBatteryDevices = 0;
-          let lowBatteryDevices = 0;
-          let totalLinkQuality = 0;
-          let minLinkQuality = 255;
-          let maxLinkQuality = 0;
+          const devices = []
+          let totalDevices = 0
+          let availableDevices = 0
+          let totalBatteryDevices = 0
+          let lowBatteryDevices = 0
+          let totalLinkQuality = 0
+          let minLinkQuality = 255
+          let maxLinkQuality = 0
 
           for (const device of this.zigbee.devicesIterator()) {
-            totalDevices++;
-            if (device.available !== false) availableDevices++;
+            totalDevices++
+            if (device.type !== 'Unknown') availableDevices++
 
-            const state = this.state.get(device) || {};
-            const battery = state.battery;
+            const state = this.state.get(device) || {}
+            const battery = state.battery
 
             if (battery !== undefined) {
-              totalBatteryDevices++;
-              if (battery < 20) lowBatteryDevices++;
+              totalBatteryDevices++
+              if (battery < 20) lowBatteryDevices++
             }
 
-            const lq = device.linkquality || 0;
-            totalLinkQuality += lq;
-            minLinkQuality = Math.min(minLinkQuality, lq);
-            maxLinkQuality = Math.max(maxLinkQuality, lq);
+            const lq = 0
+            totalLinkQuality += lq
+            minLinkQuality = Math.min(minLinkQuality, lq)
+            maxLinkQuality = Math.max(maxLinkQuality, lq)
 
             if (detailed) {
               devices.push({
                 name: device.name,
-                available: device.available !== false,
+                available: device.type !== 'Unknown',
                 battery: battery || null,
                 link_quality: lq,
                 last_seen: device.lastSeen ? new Date(device.lastSeen).toISOString() : null
-              });
+              })
             }
           }
 
-          const avgLinkQuality = totalDevices > 0 ? (totalLinkQuality / totalDevices).toFixed(1) : 0;
-          const availabilityPercent = totalDevices > 0 ? ((availableDevices / totalDevices) * 100).toFixed(1) : 0;
+          const avgLinkQuality = totalDevices > 0 ? (totalLinkQuality / totalDevices).toFixed(1) : 0
+          const availabilityPercent = totalDevices > 0 ? ((availableDevices / totalDevices) * 100).toFixed(1) : 0
 
           const health = {
             status: availableDevices === totalDevices ? 'healthy' : 'degraded',
@@ -1339,10 +1339,10 @@ class McpServerImpl {
               channel: this.zigbee.controller?.meta?.channel || 'unknown'
             },
             timestamp: new Date().toISOString()
-          };
+          }
 
           if (detailed) {
-            health.devices_detail = devices;
+            health.devices_detail = devices
           }
 
           return {
@@ -1350,16 +1350,16 @@ class McpServerImpl {
               type: 'text',
               text: JSON.stringify(health, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] check_bridge_health error: ${error.message}`);
+          this.logger.error(`[MCP] check_bridge_health error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * restart_coordinator — Restart Zigbee coordinator
@@ -1369,10 +1369,10 @@ class McpServerImpl {
       {},
       async () => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
-          const payload = {};
+          const baseTopic = this.settings.get().mqtt.base_topic
+          const payload = {}
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/restart`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/restart`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -1383,16 +1383,16 @@ class McpServerImpl {
                 warning: 'Bridge will be temporarily unavailable'
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] restart_coordinator error: ${error.message}`);
+          this.logger.error(`[MCP] restart_coordinator error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
 
     /**
      * permit_join — Set permit join mode (allow new devices to join network)
@@ -1405,13 +1405,13 @@ class McpServerImpl {
       },
       async ({ enabled, timeout = 0 }) => {
         try {
-          const baseTopic = this.settings.get().mqtt.base_topic;
+          const baseTopic = this.settings.get().mqtt.base_topic
           const payload = {
             value: enabled,
             ...(timeout > 0 && { timeout })
-          };
+          }
 
-          this.mqtt.publish(`${baseTopic}/bridge/request/permit_join`, JSON.stringify(payload));
+          this.mqtt.publish(`${baseTopic}/bridge/request/permit_join`, JSON.stringify(payload))
 
           return {
             content: [{
@@ -1423,22 +1423,22 @@ class McpServerImpl {
                 timeout: timeout > 0 ? `${timeout}s` : 'no timeout'
               }, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] permit_join error: ${error.message}`);
+          this.logger.error(`[MCP] permit_join error: ${error.message}`)
           return {
             content: [{ type: 'text', text: `Error: ${error.message}` }],
             isError: true
-          };
+          }
         }
       }
-    );
+    )
   }
 
   // ========== PHASE 2: MCP RESOURCES ==========
 
   _registerResources() {
-    const { ResourceTemplate } = require('@modelcontextprotocol/sdk/types.js');
+    const { ResourceTemplate } = require('@modelcontextprotocol/sdk/types.js')
 
     /**
      * z2m://devices — List all devices
@@ -1448,7 +1448,7 @@ class McpServerImpl {
       { uri: { type: 'string' } },
       async () => {
         try {
-          const devices = [];
+          const devices = []
           for (const device of this.zigbee.devicesIterator()) {
             devices.push({
               id: device.ieeeAddr,
@@ -1456,9 +1456,9 @@ class McpServerImpl {
               model: device.model || 'unknown',
               manufacturer: device.manufacturerName || 'unknown',
               type: device.type || 'unknown',
-              available: device.available !== false,
-              link_quality: device.linkquality || null
-            });
+              available: device.type !== 'Unknown',
+              link_quality: null
+            })
           }
 
           return {
@@ -1467,13 +1467,13 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(devices, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://devices error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://devices error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
 
     /**
      * z2m://devices/{id} — Get single device details
@@ -1483,10 +1483,10 @@ class McpServerImpl {
       { uri: { type: 'string' } },
       async (uri) => {
         try {
-          const id = uri.split('/').pop();
-          const entity = this.zigbee.resolveEntity(id);
+          const id = uri.split('/').pop()
+          const entity = this.zigbee.resolveEntity(id)
           if (!entity) {
-            throw new Error(`Device not found: ${id}`);
+            throw new Error(`Device not found: ${id}`)
           }
 
           const deviceData = {
@@ -1502,7 +1502,7 @@ class McpServerImpl {
             last_seen: entity.lastSeen ? new Date(entity.lastSeen).toISOString() : null,
             state: this.state.get(entity) || {},
             exposes: entity.definition?.exposes || []
-          };
+          }
 
           return {
             contents: [{
@@ -1510,13 +1510,13 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(deviceData, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://devices/{id} error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://devices/{id} error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
 
     /**
      * z2m://devices/{id}/state — Get device state only
@@ -1526,13 +1526,13 @@ class McpServerImpl {
       { uri: { type: 'string' } },
       async (uri) => {
         try {
-          const id = uri.split('/')[2];
-          const entity = this.zigbee.resolveEntity(id);
+          const id = uri.split('/')[2]
+          const entity = this.zigbee.resolveEntity(id)
           if (!entity) {
-            throw new Error(`Device not found: ${id}`);
+            throw new Error(`Device not found: ${id}`)
           }
 
-          const state = this.state.get(entity) || {};
+          const state = this.state.get(entity) || {}
 
           return {
             contents: [{
@@ -1540,13 +1540,13 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(state, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://devices/{id}/state error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://devices/{id}/state error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
 
     /**
      * z2m://groups — List all groups
@@ -1556,13 +1556,13 @@ class McpServerImpl {
       { uri: { type: 'string' } },
       async () => {
         try {
-          const groups = [];
+          const groups = []
           for (const group of this.zigbee.groupsIterator()) {
             groups.push({
               id: group.groupID,
               name: group.name,
               members_count: group.members?.length || 0
-            });
+            })
           }
 
           return {
@@ -1571,13 +1571,13 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(groups, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://groups error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://groups error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
 
     /**
      * z2m://groups/{id} — Get single group with members
@@ -1587,19 +1587,19 @@ class McpServerImpl {
       { uri: { type: 'string' } },
       async (uri) => {
         try {
-          const id = uri.split('/').pop();
-          const groupId = isNaN(id) ? id : parseInt(id, 10);
-          let group = null;
+          const id = uri.split('/').pop()
+          const groupId = isNaN(id) ? id : parseInt(id, 10)
+          let group = null
 
           for (const g of this.zigbee.groupsIterator()) {
             if (g.groupID === groupId || g.name === id) {
-              group = g;
-              break;
+              group = g
+              break
             }
           }
 
           if (!group) {
-            throw new Error(`Group not found: ${id}`);
+            throw new Error(`Group not found: ${id}`)
           }
 
           const groupData = {
@@ -1611,7 +1611,7 @@ class McpServerImpl {
               type: m.type
             })),
             members_count: group.members?.length || 0
-          };
+          }
 
           return {
             contents: [{
@@ -1619,13 +1619,13 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(groupData, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://groups/{id} error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://groups/{id} error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
 
     /**
      * z2m://bridge/info — Get bridge configuration and status
@@ -1648,7 +1648,7 @@ class McpServerImpl {
               channel: this.zigbee.controller?.meta?.channel || 'unknown'
             },
             timestamp: new Date().toISOString()
-          };
+          }
 
           return {
             contents: [{
@@ -1656,13 +1656,13 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(bridgeInfo, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://bridge/info error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://bridge/info error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
 
     /**
      * z2m://network/map — Get network topology/map
@@ -1672,9 +1672,9 @@ class McpServerImpl {
       { uri: { type: 'string' } },
       async () => {
         try {
-          const devices = [];
-          const links = [];
-          const coordinator = this.zigbee.controller;
+          const devices = []
+          const links = []
+          const coordinator = this.zigbee.controller
 
           for (const device of this.zigbee.devicesIterator()) {
             devices.push({
@@ -1682,20 +1682,20 @@ class McpServerImpl {
               name: device.name,
               type: device.type,
               model: device.model,
-              available: device.available !== false,
-              link_quality: device.linkquality || 0,
+              available: device.type !== 'Unknown',
+              link_quality: 0,
               parent: device.parent ? {
                 id: device.parent.ieeeAddr,
                 name: device.parent.name
               } : null
-            });
+            })
 
             if (device.parent) {
               links.push({
                 source: device.parent.ieeeAddr,
                 target: device.ieeeAddr,
-                quality: device.linkquality || 0
-              });
+                quality: 0
+              })
             }
           }
 
@@ -1709,7 +1709,7 @@ class McpServerImpl {
               channel: coordinator?.meta?.channel || 'unknown'
             },
             timestamp: new Date().toISOString()
-          };
+          }
 
           return {
             contents: [{
@@ -1717,14 +1717,14 @@ class McpServerImpl {
               mimeType: 'application/json',
               text: JSON.stringify(networkMap, null, 2)
             }]
-          };
+          }
         } catch (error) {
-          this.logger.error(`[MCP] Resource z2m://network/map error: ${error.message}`);
-          throw error;
+          this.logger.error(`[MCP] Resource z2m://network/map error: ${error.message}`)
+          throw error
         }
       }
-    );
+    )
   }
 }
 
-module.exports = McpServerImpl;
+module.exports = McpServerImpl

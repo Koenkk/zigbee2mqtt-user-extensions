@@ -32165,8 +32165,8 @@ var require_mcp_server_impl = __commonJS({
                   type: device.type || "unknown",
                   supported: device.supported !== false,
                   power_source: device.powerSource || "unknown",
-                  available: device.available !== false,
-                  link_quality: device.linkquality || null
+                  available: device.type !== "Unknown",
+                  link_quality: null
                 };
                 if (include_state) {
                   deviceData.state = this._getDeviceState(device);
@@ -33018,8 +33018,8 @@ meta:
                   name: device.name,
                   type: device.type,
                   model: device.model,
-                  available: device.available !== false,
-                  link_quality: device.linkquality || 0,
+                  available: device.type !== "Unknown",
+                  link_quality: 0,
                   parent: device.parent ? {
                     id: device.parent.ieeeAddr,
                     name: device.parent.name
@@ -33029,7 +33029,7 @@ meta:
                   links.push({
                     source: device.parent.ieeeAddr,
                     target: device.ieeeAddr,
-                    quality: device.linkquality || 0
+                    quality: 0
                   });
                 }
               }
@@ -33092,21 +33092,21 @@ meta:
               let maxLinkQuality = 0;
               for (const device of this.zigbee.devicesIterator()) {
                 totalDevices++;
-                if (device.available !== false) availableDevices++;
+                if (device.type !== "Unknown") availableDevices++;
                 const state = this.state.get(device) || {};
                 const battery = state.battery;
                 if (battery !== void 0) {
                   totalBatteryDevices++;
                   if (battery < 20) lowBatteryDevices++;
                 }
-                const lq = device.linkquality || 0;
+                const lq = 0;
                 totalLinkQuality += lq;
                 minLinkQuality = Math.min(minLinkQuality, lq);
                 maxLinkQuality = Math.max(maxLinkQuality, lq);
                 if (detailed) {
                   devices.push({
                     name: device.name,
-                    available: device.available !== false,
+                    available: device.type !== "Unknown",
                     battery: battery || null,
                     link_quality: lq,
                     last_seen: device.lastSeen ? new Date(device.lastSeen).toISOString() : null
@@ -33237,8 +33237,8 @@ meta:
                   model: device.model || "unknown",
                   manufacturer: device.manufacturerName || "unknown",
                   type: device.type || "unknown",
-                  available: device.available !== false,
-                  link_quality: device.linkquality || null
+                  available: device.type !== "Unknown",
+                  link_quality: null
                 });
               }
               return {
@@ -33427,8 +33427,8 @@ meta:
                   name: device.name,
                   type: device.type,
                   model: device.model,
-                  available: device.available !== false,
-                  link_quality: device.linkquality || 0,
+                  available: device.type !== "Unknown",
+                  link_quality: 0,
                   parent: device.parent ? {
                     id: device.parent.ieeeAddr,
                     name: device.parent.name
@@ -33438,7 +33438,7 @@ meta:
                   links.push({
                     source: device.parent.ieeeAddr,
                     target: device.ieeeAddr,
-                    quality: device.linkquality || 0
+                    quality: 0
                   });
                 }
               }
@@ -34893,7 +34893,8 @@ var require_http_transport = __commonJS({
         });
       }
       async start() {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
+          await this.mcpServer.connect(this.transport);
           this.server = http.createServer((req, res) => {
             if (req.method === "GET" && req.url === "/health") {
               res.writeHead(200, { "Content-Type": "application/json" });
@@ -34958,6 +34959,7 @@ var McpServerExtension = class {
     this.eventBus = eventBus;
     this.restartCallback = restartCallback;
     this.addExtension = addExtension;
+    this.enableDisableExtension = enableDisableExtension;
     this.settings = settings;
     this.logger = logger;
     this.port = parseInt(process.env.ZIGBEE2MQTT_CONFIG_MCP_PORT || "4747", 10);
@@ -34998,6 +35000,7 @@ var McpServerExtension = class {
   async stop() {
     if (!this.httpTransport) return;
     try {
+      this.eventBus.removeAllListeners(this);
       await this.httpTransport.stop();
       this.logger.info("[MCP] Server stopped");
     } catch (error) {

@@ -33,31 +33,32 @@ class McpServerExtension {
     logger
   ) {
     // Store all injected services from z2m
-    this.zigbee = zigbee;
-    this.mqtt = mqtt;
-    this.state = state;
-    this.publishEntityState = publishEntityState;
-    this.eventBus = eventBus;
-    this.restartCallback = restartCallback;
-    this.addExtension = addExtension;
-    this.settings = settings;
-    this.logger = logger;
+    this.zigbee = zigbee
+    this.mqtt = mqtt
+    this.state = state
+    this.publishEntityState = publishEntityState
+    this.eventBus = eventBus
+    this.restartCallback = restartCallback
+    this.addExtension = addExtension
+    this.enableDisableExtension = enableDisableExtension
+    this.settings = settings
+    this.logger = logger
 
     // Read configuration from environment variables
-    this.port = parseInt(process.env.ZIGBEE2MQTT_CONFIG_MCP_PORT || '4747', 10);
-    this.host = process.env.ZIGBEE2MQTT_CONFIG_MCP_HOST || '0.0.0.0';
-    this.enabled = process.env.ZIGBEE2MQTT_CONFIG_MCP_ENABLED !== 'false';
+    this.port = parseInt(process.env.ZIGBEE2MQTT_CONFIG_MCP_PORT || '4747', 10)
+    this.host = process.env.ZIGBEE2MQTT_CONFIG_MCP_HOST || '0.0.0.0'
+    this.enabled = process.env.ZIGBEE2MQTT_CONFIG_MCP_ENABLED !== 'false'
 
-    this.mcpServer = null;
-    this.httpTransport = null;
+    this.mcpServer = null
+    this.httpTransport = null
 
-    this.logger.info(`[MCP] Extension initialized (port: ${this.port}, host: ${this.host})`);
+    this.logger.info(`[MCP] Extension initialized (port: ${this.port}, host: ${this.host})`)
   }
 
   async start() {
     if (!this.enabled) {
-      this.logger.info('[MCP] Extension disabled via ZIGBEE2MQTT_CONFIG_MCP_ENABLED=false');
-      return;
+      this.logger.info('[MCP] Extension disabled via ZIGBEE2MQTT_CONFIG_MCP_ENABLED=false')
+      return
     }
 
     try {
@@ -70,7 +71,7 @@ class McpServerExtension {
         this.eventBus,
         this.settings,
         this.logger
-      );
+      )
 
       // 2. Initialize HTTP transport
       this.httpTransport = new HttpTransport(
@@ -78,28 +79,31 @@ class McpServerExtension {
         this.port,
         this.host,
         this.logger
-      );
+      )
 
       // 3. Start HTTP server
-      await this.httpTransport.start();
+      await this.httpTransport.start()
 
-      this.logger.info(`[MCP] Server started successfully on ${this.host}:${this.port}`);
+      this.logger.info(`[MCP] Server started successfully on ${this.host}:${this.port}`)
     } catch (error) {
-      this.logger.error(`[MCP] Failed to start: ${error.message}`);
-      throw error;
+      this.logger.error(`[MCP] Failed to start: ${error.message}`)
+      throw error
     }
   }
 
   async stop() {
-    if (!this.httpTransport) return;
+    if (!this.httpTransport) return
 
     try {
-      await this.httpTransport.stop();
-      this.logger.info('[MCP] Server stopped');
+      // Clean up EventBus listeners
+      this.eventBus.removeAllListeners(this)
+      
+      await this.httpTransport.stop()
+      this.logger.info('[MCP] Server stopped')
     } catch (error) {
-      this.logger.error(`[MCP] Error stopping server: ${error.message}`);
+      this.logger.error(`[MCP] Error stopping server: ${error.message}`)
     }
   }
 }
 
-module.exports = McpServerExtension;
+module.exports = McpServerExtension
