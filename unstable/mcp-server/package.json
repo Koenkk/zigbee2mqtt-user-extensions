@@ -1,0 +1,19 @@
+{
+  "name": "zigbee2mqtt-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for Zigbee2MQTT as external extension",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "engines": {
+    "node": ">=20.15.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.7.0",
+    "zod": "^3.24.0"
+  }
+}
