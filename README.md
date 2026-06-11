@@ -12,5 +12,6 @@ The extensions listed here are considered **stable** and are not expected to get
 The extensions listed here are considered **unstable** and are under active development; breaking changes and frequent updates are expected.
 
 - [DewpointCalculator](unstable/DewpointCalculator/README.md): calculates and injects dewpoint into every device message that contains both temperature and humidity.
+- [desired_state_retry](unstable/desired_state_retry/README.md): retries verifiable device `/set` commands until the requested state is observed or the retry budget is exhausted.
 - [miboxer-fut089z/controls-exposer](unstable/miboxer-fut089z/README.md): exposes the controls of MiBoxer FUT089Z remotes, which only emit group commands not supported by zigbee-herdsman-converters.
 - [mcp-server](unstable/mcp-server/README.md): a Model Context Protocol server that lets AI tools (Claude, Cursor, etc.) interact with your Zigbee network programmatically.
