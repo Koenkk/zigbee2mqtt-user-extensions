@@ -2,8 +2,9 @@ const CONFIG = {
     // List friendly names or IEEE addresses. Use ['*'] only when every device
     // with a supported property should be retried.
     devices: [],
-    // Retried properties. `state` covers on/off/open/close style actuators.
-    properties: ['state'],
+    // Retried properties. `state` covers on/off/open/close style actuators;
+    // `position` covers blind/curtain set-position commands.
+    properties: ['state', 'position'],
     maxRetries: 4,
     retryCooldownSeconds: 4,
     deadlineSeconds: 30,
