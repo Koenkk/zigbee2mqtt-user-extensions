@@ -38,7 +38,13 @@ const CONFIG = {
     concurrency: 2,        // routers asked at the same time when the request does not say
     maxConcurrency: 8,     // hard cap for the request field
     replaceBuiltin: true,  // also serve bridge/request/networkmap (type raw) so the frontend's map uses this scan
+    requestTimeout: 30,    // s: backstop per neighbour-table / routing-table request (zigbee-herdsman normally times out long before)
+    scanTimeout: 240,      // s: backstop for a whole scan; after it the request is answered with an error and the next scan may start
 };
+const withTimeout = (promise, seconds, what) => new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${what} timed out after ${seconds} s`)), seconds * 1000);
+    promise.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+});
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
@@ -54,6 +60,8 @@ export default class NetworkMapFast {
         this.builtinTopic = `${this.baseTopic}/bridge/request/networkmap`;
         this.builtin = undefined;      // the built-in NetworkMap extension's mqttMessage listener while we hold it
         this.running = false;
+        this.requestTimeout = CONFIG.requestTimeout;
+        this.scanTimeout = CONFIG.scanTimeout;
         this.lastFailed = new Set();   // ieeeAddr of routers that did not answer in the previous scan
     }
 
@@ -146,10 +154,12 @@ export default class NetworkMapFast {
         this.running = true;
         const t0 = Date.now();
         try {
-            const {value, used} = await this.networkScan(routes, concurrency, adaptive, maxConcurrency);
+            // a hung request must never leave the extension busy forever: give up on the whole scan after scanTimeout
+            const {value, used} = await withTimeout(this.networkScan(routes, concurrency, adaptive, maxConcurrency), this.scanTimeout, "network scan");
             const duration = Math.round((Date.now() - t0) / 100) / 10;
             await this.mqtt.publish(responseTopic, this.response(message, {type, routes, concurrency: used, duration, value}));
         } catch (error) {
+            this.logger.warning(`networkmap_fast: scan failed: ${error?.message ?? error}`);
             await this.mqtt.publish(responseTopic, this.response(message, {}, error?.message ?? String(error)));
         } finally {
             this.running = false;
@@ -190,16 +200,16 @@ export default class NetworkMapFast {
             failed.set(device, deviceFailures);
             const retry = !this.lastFailed.has(device.ieeeAddr);   // a router that did not answer last time gets one attempt, at the end
             try {
-                lqis.set(device, await requestWithRetry(() => device.zh.lqi(), retry));
+                lqis.set(device, await requestWithRetry(() => withTimeout(device.zh.lqi(), this.requestTimeout, `LQI request to '${device.name}'`), retry));
                 logger.debug(`networkmap_fast: LQI succeeded for '${device.name}'`);
             } catch (error) {
                 deviceFailures.push("lqi");
-                logger.error(`networkmap_fast: failed to execute LQI for '${device.name}'`);
+                logger.error(`networkmap_fast: failed to execute LQI for '${device.name}': ${error?.message ?? error}`);
                 logger.debug(error?.stack ?? String(error));
             }
             if (includeRoutes) {
                 try {
-                    routingTables.set(device, await requestWithRetry(() => device.zh.routingTable(), retry));
+                    routingTables.set(device, await requestWithRetry(() => withTimeout(device.zh.routingTable(), this.requestTimeout, `routing table request to '${device.name}'`), retry));
                     logger.debug(`networkmap_fast: routing table succeeded for '${device.name}'`);
                 } catch (error) {
                     deviceFailures.push("routingTable");
