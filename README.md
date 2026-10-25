@@ -15,3 +15,4 @@ The extensions listed here are considered **unstable** and are under active deve
 - [desired_state_retry](unstable/desired_state_retry/README.md): retries verifiable device `/set` commands until the requested state is observed or the retry budget is exhausted.
 - [miboxer-fut089z/controls-exposer](unstable/miboxer-fut089z/README.md): exposes the controls of MiBoxer FUT089Z remotes, which only emit group commands not supported by zigbee-herdsman-converters.
 - [mcp-server](unstable/mcp-server/README.md): a Model Context Protocol server that lets AI tools (Claude, Cursor, etc.) interact with your Zigbee network programmatically.
+- [networkmap_fast](unstable/networkmap_fast/README.md): faster network map scan: routers are read two at a time and routers that did not answer last time are scanned last with a single attempt; also serves the normal `networkmap` topic so the frontend's Network page uses it.
