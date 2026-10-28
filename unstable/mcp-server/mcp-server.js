@@ -32452,6 +32452,7 @@ var require_package = __commonJS({
       description: "Model Context Protocol (MCP) server for Zigbee2MQTT as external extension",
       private: true,
       scripts: {
+        test: "node --test",
         build: "node build.js"
       },
       engines: {
@@ -32461,7 +32462,7 @@ var require_package = __commonJS({
         esbuild: "^0.25.12"
       },
       dependencies: {
-        "@modelcontextprotocol/sdk": "^1.7.0",
+        "@modelcontextprotocol/sdk": "1.32.1",
         zod: "^3.24.0"
       }
     };
@@ -36379,6 +36380,7 @@ var require_http_transport = __commonJS({
     var { randomUUID } = require("crypto");
     var { StreamableHTTPServerTransport } = require_streamableHttp();
     var SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1e3;
+    var MAX_SESSIONS = 100;
     var HttpTransport2 = class {
       constructor(createMcpServer, port, host, logger) {
         this.createMcpServer = createMcpServer;
@@ -36387,6 +36389,7 @@ var require_http_transport = __commonJS({
         this.logger = logger;
         this.server = null;
         this.sessions = /* @__PURE__ */ new Map();
+        this.activeSessions = /* @__PURE__ */ new Set();
       }
       async start() {
         this.server = http.createServer((req, res) => {
@@ -36400,9 +36403,8 @@ var require_http_transport = __commonJS({
             this.logger.error(`[MCP HTTP] Server error: ${error.message}`);
             reject(error);
           };
-          this.server.once("error", onError);
+          this.server.on("error", onError);
           this.server.listen(this.port, this.host, () => {
-            this.server.removeListener("error", onError);
             this.logger.info(`[MCP HTTP] Transport listening on ${this.host}:${this.port}`);
             resolve();
           });
@@ -36435,6 +36437,10 @@ var require_http_transport = __commonJS({
             return;
           }
         } else if (req.method === "POST") {
+          if (this.activeSessions.size >= MAX_SESSIONS) {
+            this._writeError(res, 503, "Session limit reached");
+            return;
+          }
           session = await this._createSession();
           createdSession = true;
         } else {
@@ -36450,7 +36456,7 @@ var require_http_transport = __commonJS({
         } finally {
           if (createdSession && !session.transport.sessionId) {
             await this._closeSession(session);
-          } else if (session.transport.sessionId) {
+          } else {
             this._touchSession(session);
           }
         }
@@ -36466,6 +36472,7 @@ var require_http_transport = __commonJS({
             this._touchSession(session);
           }
         });
+        this.activeSessions.add(session);
         try {
           await mcpServer.server.connect(session.transport);
           const onclose = session.transport.onclose;
@@ -36491,7 +36498,10 @@ var require_http_transport = __commonJS({
         session.idleTimer.unref?.();
       }
       _removeSession(session) {
+        session.closing = true;
         clearTimeout(session.idleTimer);
+        session.idleTimer = null;
+        this.activeSessions.delete(session);
         if (session.sessionId && this.sessions.get(session.sessionId) === session) {
           this.sessions.delete(session.sessionId);
         }
@@ -36527,7 +36537,7 @@ var require_http_transport = __commonJS({
         const serverClosed = new Promise((resolve, reject) => {
           server.close((error) => error ? reject(error) : resolve());
         });
-        await Promise.all([...this.sessions.values()].map((session) => this._closeSession(session)));
+        await Promise.all([...this.activeSessions].map((session) => this._closeSession(session)));
         await serverClosed;
         this.logger.info("[MCP HTTP] Server closed");
       }

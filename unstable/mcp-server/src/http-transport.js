@@ -16,6 +16,7 @@ const { randomUUID } = require('crypto')
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js')
 
 const SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000
+const MAX_SESSIONS = 100
 
 class HttpTransport {
   constructor(createMcpServer, port, host, logger) {
@@ -25,6 +26,7 @@ class HttpTransport {
     this.logger = logger
     this.server = null
     this.sessions = new Map()
+    this.activeSessions = new Set()
   }
 
   async start() {
@@ -41,9 +43,8 @@ class HttpTransport {
         reject(error)
       }
 
-      this.server.once('error', onError)
+      this.server.on('error', onError)
       this.server.listen(this.port, this.host, () => {
-        this.server.removeListener('error', onError)
         this.logger.info(`[MCP HTTP] Transport listening on ${this.host}:${this.port}`)
         resolve()
       })
@@ -84,6 +85,10 @@ class HttpTransport {
         return
       }
     } else if (req.method === 'POST') {
+      if (this.activeSessions.size >= MAX_SESSIONS) {
+        this._writeError(res, 503, 'Session limit reached')
+        return
+      }
       // The SDK transport creates a session only for an initialize request. If
       // this is some other request, it returns the protocol's 400 response and
       // the unused server/transport are disposed in the finally block below.
@@ -104,7 +109,7 @@ class HttpTransport {
     } finally {
       if (createdSession && !session.transport.sessionId) {
         await this._closeSession(session)
-      } else if (session.transport.sessionId) {
+      } else {
         this._touchSession(session)
       }
     }
@@ -122,6 +127,7 @@ class HttpTransport {
         this._touchSession(session)
       }
     })
+    this.activeSessions.add(session)
 
     try {
       await mcpServer.server.connect(session.transport)
@@ -155,7 +161,10 @@ class HttpTransport {
   }
 
   _removeSession(session) {
+    session.closing = true
     clearTimeout(session.idleTimer)
+    session.idleTimer = null
+    this.activeSessions.delete(session)
     if (session.sessionId && this.sessions.get(session.sessionId) === session) {
       this.sessions.delete(session.sessionId)
     }
@@ -199,7 +208,7 @@ class HttpTransport {
       server.close(error => error ? reject(error) : resolve())
     })
 
-    await Promise.all([...this.sessions.values()].map(session => this._closeSession(session)))
+    await Promise.all([...this.activeSessions].map(session => this._closeSession(session)))
     await serverClosed
     this.logger.info('[MCP HTTP] Server closed')
   }
