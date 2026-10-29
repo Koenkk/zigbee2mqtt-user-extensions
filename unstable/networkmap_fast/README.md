@@ -9,6 +9,7 @@ Faster network map scan for Zigbee2MQTT: the built-in scan with a small worker p
 - by default takes over `bridge/request/networkmap` for `type: "raw"`, so the **Network page of the frontend** and any other client of the normal topic get the fast scan without changes; `graphviz` and `plantuml` requests still go to the built-in scan
 - also listens on its own topic `bridge/request/networkmap_fast` and publishes a progress count on `bridge/networkmap_fast/progress` (not under `bridge/response/`, where the frontend would show a toast for every message)
 - returns exactly the same data as the built-in scan, plus `duration` (seconds) and `concurrency` (peak routers in flight) in the response
+- with `routes: true`, asks a router for its routing table only once if it never answers: Tuya-based routers do not implement that request, and each of them would otherwise cost a full ZDO timeout on every scan
 
 ## What it does not do
 
@@ -27,6 +28,10 @@ Faster network map scan for Zigbee2MQTT: the built-in scan with a small worker p
 | cost per unpowered router | ~15 s | ~5 s total for all of them |
 
 Concurrency 4 and above lost the routers behind the weak links (requests on multi-hop paths collided, the ZDO requests timed out). The limit is the topology, not the number of devices, so 2 is the default.
+
+## Routers without a routing table
+
+`routes: true` adds one `Mgmt_Rtg_req` per router. Routers built on Tuya modules (TS0601, TS011F, TS0001 tested) answer the neighbour-table request but not the routing-table request, so every one of them costs a ZDO timeout, about 15 s, on every scan with routes. The extension remembers a router that answered its LQI request but not its routing-table request and does not ask it again; the node is reported with `failed: ["routingTable"]` as before and a warning names it once. A router that answered neither request is not remembered this way (that is the dead-router handling above). Measured on a mesh of 23 routers, 10 of them Tuya: 183 s for a routes scan before, about 90 s for the first scan after loading (the timeouts are paid once) and 15 s from the second scan on. Reloading the extension forgets the list.
 
 ## Configuration
 
