@@ -192,6 +192,23 @@ docker compose up -d
 
 ## 🧠 Using with AI Tools
 
+### HTTP sessions
+
+`POST /mcp` handles MCP JSON-RPC requests. Initialize without a session header,
+then include the returned `Mcp-Session-Id` on subsequent requests. `GET /mcp`
+opens the session's server event stream; `DELETE /mcp` closes the session. Both
+require `Mcp-Session-Id`. `OPTIONS /mcp` supports CORS preflight, and browser
+clients can read the session header. `GET /health` requires no session.
+
+Sessions expire after 24 hours without requests. Unknown or expired session IDs
+return HTTP 404; initialize a new session to reconnect. At most 100 sessions
+(including pending initialization) are allowed. New sessions receive HTTP 503
+at capacity; existing sessions remain usable. Close unused sessions with DELETE
+or retry initialization once capacity is available.
+
+The MCP SDK is pinned to version 1.32.1 to match the bundled extension. To rebuild,
+run `npm install`, `npm test`, and `npm run build` in `unstable/mcp-server`.
+
 ### Claude Desktop
 
 Add to `~/.claude/claude_desktop_config.json`:

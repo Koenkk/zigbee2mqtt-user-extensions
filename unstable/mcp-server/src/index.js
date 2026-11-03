@@ -49,7 +49,6 @@ class McpServerExtension {
     this.host = process.env.ZIGBEE2MQTT_CONFIG_MCP_HOST || '0.0.0.0'
     this.enabled = process.env.ZIGBEE2MQTT_CONFIG_MCP_ENABLED !== 'false'
 
-    this.mcpServer = null
     this.httpTransport = null
 
     this.logger.info(`[MCP] Extension initialized (port: ${this.port}, host: ${this.host})`)
@@ -62,26 +61,24 @@ class McpServerExtension {
     }
 
     try {
-      // 1. Create MCP server implementation
-      this.mcpServer = new McpServerImpl(
-        this.zigbee,
-        this.mqtt,
-        this.state,
-        this.publishEntityState,
-        this.eventBus,
-        this.settings,
-        this.logger
-      )
-
-      // 2. Initialize HTTP transport
+      // Create a separate MCP server implementation for every HTTP session.
+      // The SDK binds a server instance to one transport connection.
       this.httpTransport = new HttpTransport(
-        this.mcpServer.server,
+        () => new McpServerImpl(
+          this.zigbee,
+          this.mqtt,
+          this.state,
+          this.publishEntityState,
+          this.eventBus,
+          this.settings,
+          this.logger
+        ),
         this.port,
         this.host,
         this.logger
       )
 
-      // 3. Start HTTP server
+      // Start HTTP server
       await this.httpTransport.start()
 
       this.logger.info(`[MCP] Server started successfully on ${this.host}:${this.port}`)
