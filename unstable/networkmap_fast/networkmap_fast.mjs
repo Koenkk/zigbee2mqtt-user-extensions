@@ -63,6 +63,7 @@ export default class NetworkMapFast {
         this.requestTimeout = CONFIG.requestTimeout;
         this.scanTimeout = CONFIG.scanTimeout;
         this.lastFailed = new Set();   // ieeeAddr of routers that did not answer in the previous scan
+        this.noRoutingTable = new Set();   // ieeeAddr of routers that never answered a routing-table request (Tuya modules do not implement Mgmt_Rtg_req)
     }
 
     async start() {
@@ -207,13 +208,22 @@ export default class NetworkMapFast {
                 logger.error(`networkmap_fast: failed to execute LQI for '${device.name}': ${error?.message ?? error}`);
                 logger.debug(error?.stack ?? String(error));
             }
-            if (includeRoutes) {
+            // routing tables: a router that answered its LQI request but not Mgmt_Rtg_req does not implement it (Tuya modules);
+            // that costs one ZDO timeout once, then the device is skipped. No retry: a timeout here is not congestion.
+            if (includeRoutes && this.noRoutingTable.has(device.ieeeAddr)) {
+                deviceFailures.push("routingTable");
+            } else if (includeRoutes) {
                 try {
-                    routingTables.set(device, await requestWithRetry(() => withTimeout(device.zh.routingTable(), this.requestTimeout, `routing table request to '${device.name}'`), retry));
+                    routingTables.set(device, await withTimeout(device.zh.routingTable(), this.requestTimeout, `routing table request to '${device.name}'`));
                     logger.debug(`networkmap_fast: routing table succeeded for '${device.name}'`);
                 } catch (error) {
                     deviceFailures.push("routingTable");
-                    logger.error(`networkmap_fast: failed to execute routing table for '${device.name}'`);
+                    if (lqis.has(device)) {
+                        this.noRoutingTable.add(device.ieeeAddr);
+                        logger.warning(`networkmap_fast: '${device.name}' does not answer routing-table requests (skipped from now on)`);
+                    } else {
+                        logger.error(`networkmap_fast: failed to execute routing table for '${device.name}'`);
+                    }
                     logger.debug(error?.stack ?? String(error));
                 }
             }
